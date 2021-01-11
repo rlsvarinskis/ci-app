@@ -1,0 +1,81 @@
+:local {
+    .togglebutton {
+        display: inline-block;
+        height: 1em;
+        width: 2.25em;
+        border-radius: 0.5em;
+        position: relative;
+        top: 0.125em;
+        bottom: 0.125em;
+        cursor: pointer;
+        outline: none;
+
+        .background {
+            position: absolute;
+            top: 0;
+
+            height: 100%;
+            box-sizing: border-box;
+            border-top: solid 1px rgba(0, 0, 0, 0.1);
+            border-bottom: solid 1px rgba(0, 0, 0, 0.1);
+
+            transition: width 0.2s ease-out;
+
+            &.enabled {
+                border-left: solid 1px rgba(0, 0, 0, 0.1);
+                border-top-left-radius: 0.5em;
+                border-bottom-left-radius: 0.5em;
+                left: 0;
+    
+                background-color: #f2cc0d;
+
+                width: 22%;
+            }
+            
+            &.disabled {
+                border-right: solid 1px rgba(0, 0, 0, 0.1);
+                border-top-right-radius: 0.5em;
+                border-bottom-right-radius: 0.5em;
+                right: 0;
+                background-color: rgb(214, 214, 214);
+
+                width: 78%;
+            }
+        }
+
+        .button {
+            width: 1.25em;
+            height: 1.25em;
+            border-radius: 0.625em;
+            border: solid 1px rgba(0, 0, 0, 0.1);
+            position: absolute;
+            top: -0.125em;
+            left: -0.125em;
+            box-sizing: border-box;
+            transition: left 0.1s ease-out;
+            cursor: pointer;
+            background-color: white;
+        }
+
+        &[disabled] {
+            cursor: default;
+
+            .button {
+                background-color: #eeeeee;
+                cursor: default;
+            }
+        }
+            
+        &[data-enabled=true] {
+            .background.enabled {
+                width: 78%;
+            }
+            .background.disabled {
+                width: 22%;
+            }
+            .button {
+                left: 50%;
+            }
+        }
+    }
+}

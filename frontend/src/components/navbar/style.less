@@ -1,0 +1,73 @@
+
+:local {
+    .navbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        width: 100%;
+        height: 3rem;
+        display: table;
+        z-index: 9;
+        box-sizing: border-box;
+        background: hsl(50, 90%, 50%);
+        border-bottom: solid 1px rgba(0, 0, 0, 0.1);
+    
+        &>div {
+            display: table-cell;
+            white-space: nowrap;
+            vertical-align: middle;
+    
+            &>a {
+                display: inline-block;
+                line-height: 3rem;
+                text-decoration: none;
+                color: black;
+                padding: 0 2rem;
+        
+                &:hover {
+                    background-color: rgba(0, 0, 0, 0.1);
+                }
+            }
+
+            &:last-child {
+                img.profileimage {
+                    display: inline-block;
+                    width: 2.5rem;
+                    height: 2.5rem;
+                    object-fit: cover;
+                    object-position: center;
+                    border-radius: 1.25rem;
+                    margin-right: 0.5em;
+                    vertical-align: top;
+                    margin-top: 0.25em;
+                }
+
+                a.logout {
+                    color: white;
+                    border-left: solid 1px rgba(0, 0, 0, 0.1);
+                    position: relative;
+
+                    i {
+                        margin-right: 0.5em;
+                    }
+
+                    &:before {
+                        content: ' ';
+                        top: 0;
+                        bottom: -1px;
+                        left: -1px;
+                        right: -1px;
+                        position: absolute;
+                        background: #ff5b41;
+                        z-index: -1;
+                    }
+                }
+            }
+        }
+    
+        &>.center {
+            width: 100%;
+        }
+    }
+}
