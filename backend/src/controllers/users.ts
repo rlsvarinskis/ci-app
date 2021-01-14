@@ -21,8 +21,7 @@ const CREATE_TABLES = [
     "password_argon2" BINARY(64) NOT NULL,
     "salt" BINARY(16) NOT NULL,
     "active" BINARY(16) NULL
-)
-`,
+)`,
 `CREATE TABLE "user_recovery" (
     "recovery" BINARY(16) NOT NULL,
     "user_id" INTEGER NOT NULL,
@@ -39,11 +38,11 @@ const CREATE_TABLES = [
     UNIQUE("algorithm", "key"),
     FOREIGN KEY ("user_id") REFERENCES "users"("id")
 )`,
-`INSERT INTO "users" ("id", "username", "email", "password_argon2", "salt", "active") VALUES (0, "admin", "admin", ?, ?, true)`
+`INSERT INTO "users" ("id", "username", "email", "password_argon2", "salt", "active") VALUES (0, "admin", "admin", ?, ?, NULL)`
 ],
 ];
 const GET_PARAMETERS = [
-    [() => Promise.resolve([]), () => Promise.resolve([]), async function() {
+    [() => Promise.resolve([]), () => Promise.resolve([]), () => Promise.resolve([]), async function() {
         const salt = await randomBytes(16);
         const pw = await hash(Buffer.from("admin"), salt);
         return [pw, salt];
@@ -149,7 +148,7 @@ export default async function Users(app: Express, currentVersion: number): Promi
     while (currentVersion != CREATE_TABLES.length) {
         for (var i = 0; i < CREATE_TABLES[currentVersion].length; i++) {
             const params = await GET_PARAMETERS[currentVersion][i]();
-            console.log("Running Users v" + currentVersion + " script " + i);
+            console.log("Running Users v" + currentVersion + " script " + i + " with ", params);
             await run(CREATE_TABLES[currentVersion][i], ...params);
         }
         currentVersion++;

@@ -26,9 +26,10 @@ interface ProjectListState {
 
 export interface ProjectMember {
     username: string;
-    mod: boolean;
     make_branches: boolean;
     make_subprojects: boolean;
+    make_tags: boolean;
+    delete_tags: boolean;
 };
 
 export default class ProjectList extends React.Component<ProjectListProp, ProjectListState> {
@@ -150,7 +151,7 @@ export default class ProjectList extends React.Component<ProjectListProp, Projec
                     </div>
                 </Link>;
             })}
-            {this.state.errors != null ? this.state.errors : ""}
+            {this.state.errors != null ? JSON.stringify(this.state.errors) : ""}
             <button disabled={this.state.loading} onClick={() => this.loadMore()}>Load more</button>
         </Page>;
     }

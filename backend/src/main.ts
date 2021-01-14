@@ -11,13 +11,7 @@ import cookieSession from 'cookie-session';
 import crypto from 'crypto';
 import path from 'path';
 import ssh2 from 'ssh2';
-
-const httpHost = "0.0.0.0";
-const httpPort = 8000;
-const httpsHost = "0.0.0.0";
-const httpsPort = 443;
-const sshHost = "0.0.0.0";
-const sshPort = 2222;
+import { httpHost, httpPort, httpsPort, sshHost, sshPort } from 'ports';
 
 const app = express();
 var ssh: ssh2.Server | null;
@@ -108,6 +102,7 @@ async function start() {
 
     if (httpPort as number != 0) {
         server1 = http.createServer(app).listen(httpPort, httpHost);
+        console.log("Launched HTTP");
     }
     if (httpsPort as number != 0) {
         //server2 = https.createServer({
@@ -117,6 +112,7 @@ async function start() {
 
     if (sshPort as number != 0) {
         ssh = await sshServer(sshHost, sshPort);
+        console.log("Launched SSH");
     }
 }
 

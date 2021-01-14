@@ -1,6 +1,8 @@
 import { User } from "App";
+import Navbar from "components/navbar";
 import Page from "components/page";
 import React from "react";
+import { LoginItem } from 'components/navbar/item';
 
 interface LoginProps {
     onLogin: (user: User) => void;
@@ -65,15 +67,18 @@ export default class Login extends React.Component<LoginProps> {
     }
 
     render() {
-        return <Page>
-            <h1>Login</h1>
-            <form onSubmit={(evt) => this.submit(evt)}>
-                <p>Username: <input name="username" type="username"></input></p>
-                <p>Password: <input name="password" type="password"></input></p>
-                <p>Remember me: <input name="remember" type="checkbox"></input></p>
-                <input type="submit" value="Login" disabled={this.state.loggingIn}></input>
-                {this.state.error != null ? <>{this.state.error.message}</> : <></>}
-            </form>
-        </Page>;
+        return <>
+            <Navbar user={{username: "", email: ""}}><LoginItem path={"/login"}>Login</LoginItem></Navbar>
+            <Page>
+                <h1>Login</h1>
+                <form onSubmit={(evt) => this.submit(evt)}>
+                    <p>Username: <input name="username" type="username"></input></p>
+                    <p>Password: <input name="password" type="password"></input></p>
+                    <p>Remember me: <input name="remember" type="checkbox"></input></p>
+                    <input type="submit" value="Login" disabled={this.state.loggingIn}></input>
+                    {this.state.error != null ? <>{this.state.error.message}</> : <></>}
+                </form>
+            </Page>
+        </>;
     }
 }

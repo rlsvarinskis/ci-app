@@ -6,19 +6,22 @@ import { BranchFolder, TagFolder } from "./folders";
 import { completePush } from "controllers/projects";
 import crypto from 'crypto';
 
-export function sha256(data: string) {
-    return crypto.createHash("sha256").update(data).digest().toString("hex");
+export function md5(data: string) {
+    return crypto.createHash("md5").update(data).digest().toString("hex");
 }
 
 export function exec(command: string, parameters: string[]) {
     return new Promise((resolve, reject) => {
         const process = child_process.spawn(command, parameters);
+        process.stdin.end();
         process.stderr.addListener("data", function(chunk) {
-            console.error(chunk);
+            //console.error(chunk.toString());
         });
         process.stdout.addListener("data", function(chunk) {
-            console.info(chunk);
+            //console.info(chunk.toString());
         });
+        process.stderr.resume();
+        process.stdout.resume();
         process.addListener("error", function(error) {
             reject(error);
         });
@@ -40,24 +43,35 @@ export async function start(projectId: number, pushId: number, PUSH_FOLDER: stri
     const TAG_FOLDER = TagFolder(PUSH_FOLDER);
     const BRANCH_FOLDER = BranchFolder(PUSH_FOLDER);
 
-    const [tags, branches] = await Promise.all([fs.readdir(TAG_FOLDER), fs.readdir(BRANCH_FOLDER)]);
+    const tagP = fs.readdir(TAG_FOLDER);
+    const branchP = fs.readdir(BRANCH_FOLDER);
 
-    for (let i = 0; i < branches.length; i++) {
-        const name = branches[i];
-        try {
-            await runScripts(name, "refs/heads/" + name, path.join(BRANCH_FOLDER, name), projectId);
-        } catch (e) {
-            console.error(e);
+    try {
+        const branches = await branchP;
+        for (let i = 0; i < branches.length; i++) {
+            const name = branches[i];
+            try {
+                await runScripts(name, "refs/heads/" + name, path.join(BRANCH_FOLDER, name), projectId);
+            } catch (e) {
+                console.error(e);
+            }
         }
+    } catch (e) {
+        console.error(e);
     }
 
-    for (let i = 0; i < tags.length; i++) {
-        const name = tags[i];
-        try {
-            await runScripts(name, "refs/tags/" + name, path.join(TAG_FOLDER, name), projectId);
-        } catch (e) {
-            console.error(e);
+    try {
+        const tags = await tagP;
+        for (let i = 0; i < tags.length; i++) {
+            const name = tags[i];
+            try {
+                await runScripts(name, "refs/tags/" + name, path.join(TAG_FOLDER, name), projectId);
+            } catch (e) {
+                console.error(e);
+            }
         }
+    } catch (e) {
+        console.error(e);
     }
 
     try {
@@ -68,9 +82,12 @@ export async function start(projectId: number, pushId: number, PUSH_FOLDER: stri
 }
 
 async function runScripts(name: string, refName: string, refFolder: string, projectId: number) {
+    //Prepare folders that will contain script output
     const PROJECT_FOLDER = path.join(refFolder, "project");
     const OUTPUT_FOLDER = path.join(refFolder, "output");
     const FINAL_FOLDER = path.join(refFolder, "final");
+    //Put streams in a temporary folder, so the system is never in an inconsistent state.
+    //Either branch isn't being run yet, or it is already populated with each script, so the user knows every script that will run.
     let STREAM_FOLDER = path.join(refFolder, "streams_tmp");
 
     await fs.mkdir(STREAM_FOLDER, {
@@ -81,10 +98,12 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
 
     let dirs: string[];
     try {
+        //Find all script files and create a folder for each script
         dirs = (await fs.readdir(SCRIPTS_FOLDER)).sort();
         for (let i = 0; i < dirs.length; i++) {
             const s = await fs.lstat(path.join(SCRIPTS_FOLDER, dirs[i]));
-            if (s.isFile()) {
+            //If the entry is file with the executable bit (7th bit) set
+            if (s.isFile() && (s.mode & (1 << 6)) != 0) {
                 const SCRIPT_FOLDER = path.join(STREAM_FOLDER, dirs[i]);
                 await fs.mkdir(SCRIPT_FOLDER);
             } else {
@@ -92,6 +111,7 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
                 i--;
             }
         }
+        //Now that every script is in the streams folder, we can expose this to the user.
         let NEW_STREAM_FOLDER = path.join(refFolder, "streams");
         await fs.rename(STREAM_FOLDER, NEW_STREAM_FOLDER);
         STREAM_FOLDER = NEW_STREAM_FOLDER;
@@ -100,41 +120,56 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
         return;
     }
 
-    const containerName = "ci-app-post-receive-" + projectId + "-" + sha256(refName);
+    //Hash to prevent container name collisions
+    const containerName = "ci-app-post-receive-" + projectId + "-" + md5(refName);
     await exec("lxc", ["launch", "ubuntu:20.04", containerName]);
     try {
-        await exec("lxc", ["start", containerName]);
-        await exec("lxc", ["file", "push", "-r", "-p", PROJECT_FOLDER, containerName + "/root/project"]);
-        await exec("lxc", ["file", "push", "-r", "-p", OUTPUT_FOLDER, containerName + "/root/output"]);
+        //Upload project and output folder to the container
+        await exec("lxc", ["file", "push", "-r", "-p", PROJECT_FOLDER, containerName + "/root"]);
+        await exec("lxc", ["file", "push", "-r", "-p", OUTPUT_FOLDER, containerName + "/root"]);
+        //Output folder no longer needed
         await fs.rm(OUTPUT_FOLDER, {
             recursive: true
         });
 
         for (let i = 0; i < dirs.length; i++) {
-            const ex = child_process.spawn("lxc", ["exec", "--cwd", "/root/project", "/root/project/.ci/scripts/" + dirs[i]]);
-            const OUT = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "out"), "w");
-            const ERR = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "err"), "w");
+            const ex = child_process.spawn("lxc", ["exec", containerName, "--cwd", "/root/project", "--", "/root/project/.ci/scripts/" + dirs[i], refName]);
+            const OUT = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "out"));
+            const ERR = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "err"));
+            //Stream the outputs of the process into the out and err files
             ex.stderr.pipe(ERR);
             ex.stdout.pipe(OUT);
             //ex.stdin.write([oldHex, newHex, refName].join(" ") + "\n");
             ex.stdin.end();
             await new Promise<number>((resolve, reject) => {
                 ex.addListener("error", function(error) {
-                    OUT.close();
-                    ERR.close();
+                    //Internal failure, set the script's status to "err"
+                    console.log("Error: ", error);
                     fs.writeFile(path.join(STREAM_FOLDER, dirs[i], "res"), "err");
                     resolve(-1);
                 });
                 ex.addListener("close", function(code, signal) {
+                    //Script succeeded, write the exit code to file
                     fs.writeFile(path.join(STREAM_FOLDER, dirs[i], "res"), code.toString());
                     resolve(code);
                 });
             });
         }
 
-        await exec("lxc", ["file", "pull", "-r", "-p", containerName + "/root/output", FINAL_FOLDER]);
+        try {
+            await exec("lxc", ["file", "pull", "-r", "-p", containerName + "/root/output", refFolder]);
+            await fs.rename(OUTPUT_FOLDER, FINAL_FOLDER);
+        } catch (e) {
+            console.warn(e);
+            //Script probably deleted the output folder. No problem
+        }
     } catch (e) {
         console.error(e);
     }
+    await exec("lxc", ["stop", containerName]);
     await exec("lxc", ["delete", containerName]);
+    //Cloned repository is no longer needed
+    await fs.rm(PROJECT_FOLDER, {
+        recursive: true
+    });
 }

@@ -2,8 +2,8 @@ import React from 'react';
 import styles from './index.less';
 
 interface CloneMenuProps {
-    sshClone: string;
-    httpClone: string;
+    sshClone?: string;
+    httpClone?: string;
 };
 
 interface CloneMenuState {
@@ -99,22 +99,30 @@ export class CloneMenu extends React.Component<CloneMenuProps, CloneMenuState> {
         const httpAttrs = getAttributes(this.state.httpButton);
 
         return <div ref={this.popupRef}>
-            <div {...(this.state.open ? {"data-opened": true} : {})} className={styles.clonebutton} onClick={focusHandler}><i className="fas fa-download" />Clone</div>
+            <div {...(this.state.open ? {"data-opened": true} : {})} className={styles.clonebutton} onClick={focusHandler} tabIndex={0}><i className="fas fa-download" />Clone</div>
             {this.state.open ? <div className={styles.clonemenu}>
-                    <div className={styles.copytype}>SSH:</div>
-                    <div className={styles.copycontainer}>
-                        <input ref={this.sshRef} value={this.props.sshClone} readOnly={true} onClick={inputClickHandler} {...sshAttrs} />
-                        <div onClick={() => copyClickHandler(this.sshRef, "sshButton")} {...sshAttrs}>
-                            <i className="far fa-copy"/>
-                        </div>
-                    </div>
-                    <div className={styles.copytype}>HTTPS:</div>
-                    <div className={styles.copycontainer}>
-                        <input ref={this.httpRef} value={this.props.httpClone} readOnly={true} onClick={inputClickHandler} {...httpAttrs} />
-                        <div onClick={() => copyClickHandler(this.httpRef, "httpButton")} {...httpAttrs}>
-                            <i className="far fa-copy" />
-                        </div>
-                    </div>
+                    {this.props.sshClone != null ? (
+                        <>
+                            <div className={styles.copytype}>SSH:</div>
+                            <div className={styles.copycontainer}>
+                                <input ref={this.sshRef} value={this.props.sshClone} readOnly={true} onClick={inputClickHandler} {...sshAttrs} />
+                                <button onClick={() => copyClickHandler(this.sshRef, "sshButton")} {...sshAttrs}>
+                                    <i className="far fa-copy"/>
+                                </button>
+                            </div>
+                        </>
+                    ) : <></>}
+                    {this.props.httpClone != null ? (
+                        <>
+                            <div className={styles.copytype}>HTTPS:</div>
+                            <div className={styles.copycontainer}>
+                                <input ref={this.httpRef} value={this.props.httpClone} readOnly={true} onClick={inputClickHandler} {...httpAttrs} />
+                                <div onClick={() => copyClickHandler(this.httpRef, "httpButton")} {...httpAttrs}>
+                                    <i className="far fa-copy" />
+                                </div>
+                            </div>
+                        </>
+                    ) : <></>}
                 </div> : <></>
             }
         </div>;

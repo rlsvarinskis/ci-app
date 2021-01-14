@@ -6,24 +6,28 @@ import child_process from 'child_process';
 import { BranchFolder, DatabaseFile, OutputDirFile, ProjectIdFile, PushIdFile, RemoteRepoFile, TagFolder, UserIdFile } from "./folders";
 import { changeTag, createBranch, createTag, deleteBranch, deleteTag, updateBranchPush } from "controllers/projects";
 import { openDb } from "database";
-import { sha256 } from "./post-receive";
+import { md5 } from "./post-receive";
+
+function die(text: string): never {
+    process.stderr.write(text + "\n");
+    process.exit(-1);
+}
 
 async function start() {
-    console.log(process.env);
-
     const HOME = process.env["HOME"];
     if (HOME == null) {
-        process.exit(-1);
+        die("Internal error");
     }
+    //Since this hook is a separate process, it must load all information that the server prepared for it
     const PUSH_FOLDER = (await fs.readFile(OutputDirFile(HOME))).toString("ascii");
     const TAG_FOLDER = TagFolder(PUSH_FOLDER);
     const BRANCH_FOLDER = BranchFolder(PUSH_FOLDER);
 
     if (!(await fs.lstat(TAG_FOLDER)).isDirectory()) {
-        process.exit(-1);
+        die("Internal error");
     }
     if (!(await fs.lstat(BRANCH_FOLDER)).isDirectory()) {
-        process.exit(-1);
+        die("Internal error");
     }
     const userId = Number.parseInt((await fs.readFile(UserIdFile(HOME))).toString("ascii"));
     const projectId = Number.parseInt((await fs.readFile(ProjectIdFile(HOME))).toString("ascii"));
@@ -31,36 +35,22 @@ async function start() {
     const remoteRepo = (await fs.readFile(RemoteRepoFile(HOME))).toString("ascii");
     const databaseFile = (await fs.readFile(DatabaseFile(HOME))).toString("ascii");
 
-    const lr = new LineReader(process.stdin);
-
-    let txt: string | null = await lr.readLine();
-    if (txt == null) {
-        process.exit(-1);
-    }
-
-    const [oldHex, newHex, refName] = txt.split(" ", 3);
+    //Get 3rd, 4th, and 5th command line arguments, which are the reference name, old hex, and new hex.
+    const [refName, oldHex, newHex] = process.argv.slice(2);
 
     if (oldHex == null || newHex == null || refName == null) {
-        process.stderr.write("Internal error, bad line: " + txt);
-        process.stdin.end();
-        process.stdout.end();
-        process.stderr.end();
-        process.exit(-1);
-        return;
+        die("Internal error, bad parameters " + process.argv.join(" "));
     }
 
+    //Verify that they are correct
     const oldId = Buffer.from(oldHex, "hex");
     const newId = Buffer.from(newHex, "hex");
 
     if (oldId.length !== 20 || newId.length !== 20) {
-        process.stderr.write("Invalid object ids: " + oldHex + " " + newHex);
-        process.stdin.end();
-        process.stdout.end();
-        process.stderr.end();
-        process.exit(-1);
-        return;
+        die("Invalid object ids: " + oldHex + " " + newHex);
     }
 
+    //Determine whether we are dealing with a tag, a branch, or something else (e.g. a namespace)
     const BRANCH = "refs/heads/";
     const TAG = "refs/tags/";
     let type: "tag" | "branch";
@@ -72,6 +62,7 @@ async function start() {
         type = "tag";
         name = refName.substring(TAG.length);
     } else {
+        //Our server does not interfere with namespaces or other stuff
         process.exit(0);
     }
 
@@ -79,7 +70,7 @@ async function start() {
 
     if (oldId.every(x => x === 0)) {
         if (newId.every(x => x === 0)) {
-            throw "Cannot change ref from null to null";
+            die("Cannot change ref from null to null");
         } else {
             operation = "creating";
         }
@@ -102,14 +93,14 @@ async function start() {
             break;
     }
 
+    //The pre-receive hook will have generated a folder for this reference if the user was allowed to manipulate it.
+    //If the folder does not exist, the pre-receive hook did not allow the user to touch this reference.
     try {
         if (!(await fs.lstat(REF_FOLDER)).isDirectory()) {
-            process.stderr.write("Forbidden");
-            process.exit(-1);
+            die("Forbidden");
         }
     } catch (e) {
-        process.stderr.write("Forbidden");
-        process.exit(-1);
+        die("Forbidden");
     }
 
     const PROJECT_FOLDER = path.join(REF_FOLDER, "project");
@@ -123,8 +114,9 @@ async function start() {
 
     try {
         if (operation !== "deleting") {
-            child_process.execSync("git init . && git remote add origin \"" + remoteRepo + "\" && git fetch origin " + newHex + " && git fetch origin " + oldHex + " && git reset --hard " + newHex, {
-                cwd: PROJECT_FOLDER
+            child_process.execSync("git init . && git remote add origin \"" + remoteRepo + "\" && git fetch origin " + newHex + (operation !== "creating" ? " && git fetch origin " + oldHex : "") + " && git reset --hard " + newHex, {
+                cwd: PROJECT_FOLDER,
+                env: {"GIT_DIR": undefined}
             });
             let SCRIPTS_FOLDER = path.join(PROJECT_FOLDER, ".ci", "checks");
 
@@ -134,13 +126,17 @@ async function start() {
             } catch (e) {
             }
     
+            //Check if the checks folder even exists. If it doesn't, we don't have to do anything.
             if (stats != null && stats.isDirectory()) {
-                const containerName = "ci-app-update-" + projectId + "-" + sha256(name);
-                child_process.spawnSync("lxc", ["launch", "ubuntu:20.04", containerName]);
+                //Spawn the container
+                const containerName = "ci-app-update-" + projectId + "-" + md5(name);
+                //No problem with using sync, since this is a separate process anyways.
+                child_process.spawnSync("lxc", ["init", "ubuntu:20.04", containerName]);
                 try {
+                    //Start the container and put the needed files in it.
                     child_process.spawnSync("lxc", ["start", containerName]);
-                    child_process.spawnSync("lxc", ["file", "push", "-r", "-p", PROJECT_FOLDER, containerName + "/root/project"]);
-                    child_process.spawnSync("lxc", ["file", "push", "-r", "-p", OUTPUT_FOLDER, containerName + "/root/output"]);
+                    child_process.spawnSync("lxc", ["file", "push", "-r", "-p", PROJECT_FOLDER, containerName + "/root"]);
+                    child_process.spawnSync("lxc", ["file", "push", "-r", "-p", OUTPUT_FOLDER, containerName + "/root"]);
                     await fs.rm(OUTPUT_FOLDER, {
                         recursive: true
                     });
@@ -148,15 +144,21 @@ async function start() {
                     const dir = (await fs.readdir(SCRIPTS_FOLDER)).sort();
                     for (let i = 0; i < dir.length; i++) {
                         const s = await fs.lstat(path.join(SCRIPTS_FOLDER, dir[i]));
-                        if (s.isFile()) {
-                            const ex = child_process.spawn("lxc", ["exec", "--cwd", "/root/project", "/root/project/.ci/checks/" + dir[i]]);
-                            ex.stderr.pipe(process.stderr);
-                            ex.stdout.pipe(process.stdout);
+                        //If the entry is a file with the executable bit (7th bit) set
+                        if (s.isFile() && (s.mode & (1 << 6)) != 0) {
+                            const ex = child_process.spawn("lxc", ["exec", containerName, "--cwd", "/root/project", "--", "/root/project/.ci/checks/" + dir[i], oldHex, newHex, refName]);
+                            //Send the output of each script to the hook output, so that git transfers the output to the user.
+                            ex.stderr.pipe(process.stderr, {
+                                end: false
+                            });
+                            ex.stdout.pipe(process.stdout, {
+                                end: false
+                            });
                             ex.stdin.write([oldHex, newHex, refName].join(" ") + "\n");
                             ex.stdin.end();
                             const exitCode = await new Promise<number>((resolve, reject) => {
-                                ex.addListener("close", function() {
-                                    resolve(ex.exitCode || -1);
+                                ex.addListener("close", function(exit) {
+                                    resolve(exit);
                                 });
                             });
     
@@ -166,15 +168,18 @@ async function start() {
                         }
                     }
 
-                    child_process.spawnSync("lxc", ["file", "pull", "-r", "-p", containerName + "/root/output", OUTPUT_FOLDER]);
+                    child_process.spawnSync("lxc", ["file", "pull", "-r", "-p", containerName + "/root/output", REF_FOLDER]);
                 } catch (e) {
+                    child_process.spawnSync("lxc", ["stop", containerName]);
                     child_process.spawnSync("lxc", ["delete", containerName]);
                     throw e;
                 }
+                child_process.spawnSync("lxc", ["stop", containerName]);
                 child_process.spawnSync("lxc", ["delete", containerName]);
             }
         }
 
+        //This hook is a separate process, so it must open the database itself.
         await openDb(databaseFile);
 
         if (type === "branch") {
@@ -203,6 +208,7 @@ async function start() {
             }
         }
     } catch (e) {
+        //Clean up if there is an error, otherwise the resources folder will constantly clone repositories.
         await fs.rm(REF_FOLDER, {
             recursive: true
         });

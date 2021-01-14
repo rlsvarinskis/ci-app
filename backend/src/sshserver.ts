@@ -35,6 +35,7 @@ export async function sshServer(sshHost: string, sshPort: number) {
     }, (client, info) => {
         var userId: number | null = null;
         const sId = sessions++;
+        let wasLastPK = false;
         var ss = 0;
         console.info("[SSH] New client " + sId);
         client.on('authentication', async context => {
@@ -46,6 +47,7 @@ export async function sshServer(sshHost: string, sshPort: number) {
 
             switch (context.method) {
                 case "publickey":
+                    wasLastPK = true;
                     try {
                         const startTime = performance.now();
                         userId = await findSSHKey(context.key.algo, context.key.data);
@@ -68,6 +70,9 @@ export async function sshServer(sshHost: string, sshPort: number) {
                     }
                     break;
                 default:
+                    if (wasLastPK) {
+                        context.accept();
+                    }
                     console.warn("[SSH][" + sId + "] Bad authentication method: " + context.method);
                     context.reject();
                     break;
@@ -76,12 +81,12 @@ export async function sshServer(sshHost: string, sshPort: number) {
         client.on('session', (a, r) => {
             const ssId = ss++;
             console.info("[SSH][" + sId + "] Establishing session " + ssId);
-            if (userId == null) {
-                console.warn("[SSH][" + sId + "][" + ssId + "] Attempt to establish session despite failed authentication");
-                r();
-                return;
-            }
-            const uid = userId;
+            //if (userId == null) {
+            //    console.warn("[SSH][" + sId + "][" + ssId + "] Attempt to establish session despite failed authentication");
+            //    r();
+            //    return;
+            //}
+            //const uid = userId;
             const session = a();
             const setEnv: {[key: string]: string} = {};
             session.on("exec", (a, r, i) => {
@@ -96,14 +101,14 @@ export async function sshServer(sshHost: string, sshPort: number) {
                     switch (cmd[0].toLowerCase()) {
                         case "git-upload-pack":
                             console.info("[SSH][" + sId + "][" + ssId + "] Running upload-pack on " + cmd[1]);
-                            upload_pack.run(uid, cmd[1], setEnv, a()).catch(e => {
+                            upload_pack.run(userId, cmd[1], setEnv, a()).catch(e => {
                                 console.error(e);
                                 //TODO:
                             });
                             break;
                         case "git-receive-pack":
                             console.info("[SSH][" + sId + "][" + ssId + "] Running receive-pack on " + cmd[1]);
-                            receive_pack.run(uid, cmd[1], setEnv, a()).catch(e => {
+                            receive_pack.run(userId, cmd[1], setEnv, a()).catch(e => {
                                 console.error(e);
                                 //TODO:
                             });

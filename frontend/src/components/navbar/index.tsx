@@ -4,7 +4,6 @@ import { Link, useLocation } from 'react-router-dom';
 import styles from './style.less';
 
 interface NavbarProps {
-    location: string[];
     user: User;
 };
 
@@ -33,7 +32,7 @@ export default class Navbar extends React.Component<NavbarProps> {
                 <Link to="/">CI Project</Link>
             </div>
             <div className={styles.center}>
-                {...this.props.location.map((x, i) => <Link key={i + ":" + x} to="/">{x}</Link>)}
+                {this.props.children}
             </div>
             {this.props.user.username !== "" ? (
                 <div>

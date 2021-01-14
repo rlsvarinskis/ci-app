@@ -17,8 +17,6 @@ const DELETED_BRANCHES: string[] = [];
 const CHANGED_BRANCHES: string[] = [];
 
 async function start() {
-    console.log(process.env);
-
     const HOME = process.env["HOME"];
     if (HOME == null) {
         process.exit(-1);
@@ -45,7 +43,7 @@ async function start() {
         const [oldHex, newHex, refName] = txt.split(" ", 3);
 
         if (oldHex == null || newHex == null || refName == null) {
-            process.stderr.write("Internal error, bad line: " + txt);
+            process.stderr.write("Internal error, bad line: " + txt + "\n");
             process.stdin.end();
             process.stdout.end();
             process.stderr.end();
@@ -57,7 +55,7 @@ async function start() {
         const newId = Buffer.from(newHex, "hex");
 
         if (oldId.length !== 20 || newId.length !== 20) {
-            process.stderr.write("Invalid object ids: " + oldHex + " " + newHex);
+            process.stderr.write("Invalid object ids: " + oldHex + " " + newHex + "\n");
             process.stdin.end();
             process.stdout.end();
             process.stderr.end();

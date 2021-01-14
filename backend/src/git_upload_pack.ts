@@ -2,10 +2,14 @@ import { findProject, notGitRepo } from "git_receive_pack";
 import { canReadProject, getNonReadBranches } from "controllers/projects";
 import { ServerChannel } from "ssh2";
 import cp from 'child_process';
+import path from 'path';
 
-export async function run(userId: number, project: string, env: {[key: string]: string}, channel: ServerChannel) {
+export async function run(userId: number | null, project: string, env: {[key: string]: string}, channel: ServerChannel) {
     const p = await findProject(project);
     if (p == null) {
+        return notGitRepo(project, channel);
+    }
+    if (p.private && userId == null) {
         return notGitRepo(project, channel);
     }
 
@@ -16,7 +20,7 @@ export async function run(userId: number, project: string, env: {[key: string]: 
     const hiddenRefs = (await getNonReadBranches(p.id, userId)).flatMap(x => ["-c", "uploadpack.hideRefs=refs/heads/" + x]);
 
     return await new Promise<void>(resolve => {
-        const process = cp.spawn("git", [...hiddenRefs, "-c", "uploadpack.allowFilter", "upload-pack", "./repo/" + p.id + ".git"], {
+        const process = cp.spawn("git", [...hiddenRefs, "-c", "uploadpack.allowFilter", "upload-pack", path.resolve("repo", p.id + ".git")], {
             env: env
         });
     

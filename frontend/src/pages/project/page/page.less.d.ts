@@ -1,6 +1,7 @@
 declare namespace PageLessNamespace {
   export interface IPageLess {
     content: string;
+    mini: string;
     page: string;
   }
 }

@@ -9,6 +9,7 @@ import path from 'path';
 import { parse } from "url";
 import { getUser, User } from "controllers/users";
 import * as mime from 'mime-types';
+import { sshPort } from "ports";
 
 declare global {
     namespace Express {
@@ -114,7 +115,7 @@ const INSERT_PROJECT_SQL = `INSERT INTO "projects" ("parent", "owner", "name", "
 const UPDATE_PROJECT_PRIVATE_SQL = `UPDATE "projects" SET "private"=? WHERE "id"=?`;
 const UPDATE_PROJECT_PERMISSION_SQL = `UPDATE "projects" SET "default_branch_permissions"=? WHERE "id"=?`;
 const UPDATE_PROJECT_DESCRIPTION_SQL = `UPDATE "projects" SET "description"=? WHERE "id"=?`;
-const UPDATE_PROJECT_OWNER_SQL = `UPDATE "projects" SET "owner"=? WHERE "id"=?`;
+const UPDATE_PROJECT_OWNER_SQL = `UPDATE "projects" SET "owner"=?1 WHERE "id"=?2`;
 const DELETE_PROJECT_MEMBERS_SQL = `DELETE "project_members" WHERE "project_id"=?`;
 const DELETE_PROJECT_BRANCHES_SQL = `DELETE "project_branches" WHERE "project_id"=?`;
 const DELETE_PROJECT_BRANCH_ALLOWED_SQL = `DELETE "project_branch_allowed" WHERE "project_id"=?`;
@@ -127,45 +128,59 @@ FROM "projects"
 JOIN "users" ON "users"."id"="projects"."owner"
 WHERE "projects"."id"=?`;
 
-const GET_PROJECT_MEMBERS_SQL = `SELECT "username", "mod", "make_branches", "make_subprojects" FROM "project_members" LEFT JOIN "users" ON "user_id"="id" WHERE "project_id"=?`;
+const GET_PROJECT_MEMBERS_SQL = `SELECT "username", "mod", "make_branches", "make_subprojects", "make_tags", "delete_tags" FROM "project_members" LEFT JOIN "users" ON "user_id"="id" WHERE "project_id"=?`;
 const INSERT_PROJECT_MEMBER_SQL = `INSERT INTO "project_members" ("project_id", "user_id", "mod", "make_branches", "make_tags", "delete_tags", "make_subprojects") VALUES (?, ?, ?, ?, ?, ?, ?)`;
 const UPDATE_PROJECT_MEMBER_SQL = `UPDATE "project_members" SET "mod"=?, "make_branches"=?, "make_tags"=?, "delete_tags"=?, "make_subprojects"=? WHERE "project_id"=? AND "user_id"=?`;
-const DELETE_PROJECT_MEMBER_SQL = `DELETE FROM "project_members" WHERE "project_id"=? AND "user_id"=?`;
-const CAN_READ_PROJECT_SQL = `SELECT COUNT(*) AS "count" FROM "project_members" WHERE "project_id"=? AND "user_id"=?`;
-const CAN_MAKE_SUBPROJECT_SQL = `SELECT COUNT(*) AS "count" FROM "project_members" WHERE "user_id"=? AND "project_id"=? AND "make_subprojects"=TRUE`;
-const CAN_MAKE_BRANCHES_SQL = `SELECT COUNT(*) AS "count" FROM "project_members" WHERE "user_id"=? AND "project_id"=? AND "make_branches"=TRUE`;
-const CAN_MAKE_TAGS_SQL = `SELECT COUNT(*) AS "count" FROM "project_members" WHERE "user_id"=? AND "project_id"=? AND "make_tags"=TRUE`;
-const CAN_DELETE_TAGS_SQL = `SELECT COUNT(*) AS "count" FROM "project_members" WHERE "user_id"=? AND "project_id"=? AND "delete_tags"=TRUE`;
+const TRANSFER_PROJECT_MEMBER_BRANCHES_SQL = `UPDATE "project_branches" SET "owner"=? WHERE "project_id"=? AND "owner" IN (SELECT "id" FROM "users" WHERE "username"=?)`;
+const DELETE_PROJECT_MEMBER_SQL = `DELETE FROM "project_members" WHERE "project_id"=? AND "user_id" IN (SELECT "id" FROM "users" WHERE "username"=?)`;
+const CAN_READ_PROJECT_SQL = `SELECT COUNT(*) AS "count" FROM (
+    SELECT "user_id" FROM "project_members" WHERE "user_id"=?1 AND "project_id"=?2
+    UNION
+    SELECT "owner" AS "user_id" FROM "projects" WHERE "owner"=?1 AND "id"=?2
+)`;
+const CAN_MAKE_SUBPROJECT_SQL = `SELECT COUNT(*) AS "count" FROM (
+    SELECT "user_id" FROM "project_members" WHERE "user_id"=?1 AND "project_id"=?2 AND "make_subprojects"=TRUE
+    UNION
+    SELECT "owner" AS "user_id" FROM "projects" WHERE "owner"=?1 AND "id"=?2
+)`;
+const CAN_MAKE_BRANCHES_SQL = `SELECT COUNT(*) AS "count" FROM (
+    SELECT "user_id" FROM "project_members" WHERE "user_id"=?1 AND "project_id"=?2 AND "make_branches"=TRUE
+    UNION
+    SELECT "owner" AS "user_id" FROM "projects" WHERE "owner"=?1 AND "id"=?2
+)`;
+const CAN_MAKE_TAGS_SQL = `SELECT COUNT(*) AS "count" FROM (
+    SELECT "user_id" FROM "project_members" WHERE "user_id"=?1 AND "project_id"=?2 AND "make_tags"=TRUE
+    UNION
+    SELECT "owner" AS "user_id" FROM "projects" WHERE "owner"=?1 AND "id"=?2
+)`;
+const CAN_DELETE_TAGS_SQL = `SELECT COUNT(*) AS "count" FROM (
+    SELECT "user_id" FROM "project_members" WHERE "user_id"=?1 AND "project_id"=?2 AND "delete_tags"=TRUE
+    UNION
+    SELECT "owner" AS "user_id" FROM "projects" WHERE "owner"=?1 AND "id"=?2
+)`;
 
 const INSERT_PROJECT_TAG_SQL = `INSERT INTO "project_tags" ("name", "project_id", "push_id") VALUES (?, ?, ?)`;
 const UPDATE_PROJECT_TAG_SQL = `UPDATE "project_tags" SET "push_id"=? WHERE "project_id"=? AND "name"=?`;
 const DELETE_PROJECT_TAG_SQL = `DELETE FROM "project_tags" WHERE "project_id"=? AND "name"=?`;
 const DELETE_ALL_PROJECT_TAGS_SQL = `DELETE FROM "project_tags" WHERE "project_id"=?`;
 
-const GET_PROJECT_BRANCHES_SQL = `SELECT "name" AS "branch_name", "username", "branch_permission" + 2 AS "branch_permission" FROM "project_branches" LEFT JOIN "users" ON "users"."id"="creator" WHERE "project_id"=?1
+const GET_PROJECT_BRANCHES_SQL = `SELECT "name" AS "branch_name", "username", "branch_permission" + 2 AS "branch_permission" FROM "project_branches" LEFT JOIN "users" ON "users"."id"="owner" WHERE "project_id"=?1
 UNION SELECT "branch_name", "username", "writable" AS "branch_permission" FROM "project_branch_allowed" LEFT JOIN "users" ON "users"."id"="user_id" WHERE "project_id"=?1`;
 const INSERT_PROJECT_BRANCH_SQL = `INSERT INTO "project_branches" ("name", "project_id", "push_id", "owner", "branch_permission")
-SELECT ?1 AS "name", "project_id", ?3 AS "push_id", ?4 AS "owner", "branch_permission" FROM "projects" WHERE "projects"."id"=?2`;
+SELECT ?1 AS "name", "projects"."id", ?3 AS "push_id", ?4 AS "owner", "default_branch_permissions" AS "branch_permission" FROM "projects" WHERE "projects"."id"=?2`;
 const CHANGE_PROJECT_BRANCH_PUSH_SQL = `UPDATE "project_branches" SET "push_id"=? WHERE "project_id"=? AND "name"=?`;
 const DELETE_PROJECT_BRANCH_MEMBERS_SQL = `DELETE FROM "project_branch_allowed" WHERE "project_id"=? AND "branch_name"=?`;
 const DELETE_PROJECT_BRANCH_SQL = `DELETE FROM "project_branches" WHERE "project_id"=? AND "name"=?`;
-const GET_OWNED_BRANCHES_SQL = `SELECT "name" FROM "project_branches" WHERE "owner"=? AND "project_id"=? AND "name" IN ?`;
-const GET_CHANGEABLE_BRANCHES_SQL = `SELECT "name" FROM "project_branches"
-LEFT JOIN "project_branch_allowed" ON
-    "project_branch_allowed"."project_id"="project_branches"."project_id" AND
-    "project_branch_allowed"."branch_name"="project_branches"."name" AND
-    "project_branch_allowed"."user_id"=?1
-WHERE ("project_branches"."owner"=?1 OR "project_branch_allowed"."writable" IS TRUE) AND "project_branches"."project_id"=?2 AND "project_branches"."name" IN ?`;
 const GET_NON_WRITABLE_PROJECT_BRANCHES_SQL = `SELECT DISTINCT "name" AS "branch_name" FROM "project_branches" LEFT JOIN "project_branch_allowed" ON "project_branch_allowed"."project_id"="project_branches"."project_id" AND "project_branch_allowed"."branch_name"="project_branches"."name" AND "project_branch_allowed"."user_id"=?2
 WHERE "project_branches"."project_id"=?1 AND "project_branches"."branch_permission"<2 AND "project_branches"."owner"!=?2 AND "project_branch_allowed"."writable" IS NOT TRUE`;
 const GET_NON_READABLE_PROJECT_BRANCHES_SQL = `SELECT DISTINCT "name" AS "branch_name" FROM "project_branches" LEFT JOIN "project_branch_allowed" ON "project_branch_allowed"."project_id"="project_branches"."project_id" AND "project_branch_allowed"."branch_name"="project_branches"."name" AND "project_branch_allowed"."user_id"=?2
 WHERE "project_branches"."project_id"=?1 AND "project_branches"."branch_permission"<1 AND "project_branches"."owner"!=?2 AND "project_branch_allowed"."writable" IS NULL`;
 const UPDATE_BRANCH_PERMISSION_SQL = `UPDATE "project_branches" SET "branch_permission"=? WHERE "project_id"=? AND "name"=?`;
-const UPDATE_BRANCH_CREATOR_SQL = `UPDATE "project_branches" SET "creator"=? WHERE "project_id"=? AND "name"=?`;
-const CAN_CHANGE_BRANCH_SQL = `SELECT "creator" AS "user_id" FROM "project_branches" WHERE "project_id"=? AND "name"=?`;
+const UPDATE_BRANCH_CREATOR_SQL = `UPDATE "project_branches" SET "owner"=(SELECT "id" FROM "users" WHERE "username"=?1) WHERE EXISTS (SELECT "id" FROM "users" WHERE "username"=?1) AND "project_id"=? AND "name"=?`;
+const CAN_CHANGE_BRANCH_SQL = `SELECT "owner" AS "user_id" FROM "project_branches" WHERE "project_id"=? AND "name"=?`;
 const INSERT_PROJECT_BRANCH_MEMBER_SQL = `INSERT INTO "project_branch_allowed" ("project_id", "branch_name", "user_id", "writable") VALUES (?, ?, ?, ?)`;
-const UPDATE_BRANCH_MEMBER_SQL = `UPDATE "project_branch_allowed" SET "writable"=? WHERE "project_id"=? AND "branch_name"=? AND "user_id"=?`;
-const DELETE_BRANCH_MEMBER_SQL = `DELETE FROM "project_branch_allowed" WHERE "project_id"=? AND "branch_name"=? AND "user_id"=?`;
+const UPDATE_BRANCH_MEMBER_SQL = `UPDATE "project_branch_allowed" SET "writable"=? WHERE "project_id"=? AND "branch_name"=? AND "user_id" IN (SELECT "id" FROM "users" WHERE "username"=?)`;
+const DELETE_BRANCH_MEMBER_SQL = `DELETE FROM "project_branch_allowed" WHERE "project_id"=? AND "branch_name"=? AND "user_id"= IN (SELECT "id" FROM "users" WHERE "username"=?)`;
 
 const permissions = union(["NONE", "READ", "WRITE"]);
 type permissions = typeof permissions['type'];
@@ -212,7 +227,7 @@ export async function getProjects(parentProject: number, user: number, after: st
 }
 
 export async function createPush(userId: number, projectId: number, time: BigInt) {
-    return (await run(INSERT_PUSH_SQL, userId, projectId, time)).lastID;
+    return (await run(INSERT_PUSH_SQL, userId, projectId, time.toString())).lastID;
 }
 
 export async function completePush(pushId: number) {
@@ -245,11 +260,16 @@ export async function deleteTag(projectId: number, name: string) {
 }
 
 export async function getOwnedBranches(project: number, user: number, names: string[]) {
-    return (await all(GET_OWNED_BRANCHES_SQL, user, project, names)).map(x => <string> x.name);
+    return (await all(`SELECT "name" FROM "project_branches" WHERE "owner"=? AND "project_id"=? AND "name" IN (` + names.map(x => "?").join(",") + `)`, user, project, ...names)).map(x => <string> x.name);
 }
 
 export async function getChangeableBranches(project: number, user: number, names: string[]) {
-    return (await all(GET_CHANGEABLE_BRANCHES_SQL, user, project, names)).map(x => <string> x.name);
+    return (await all(`SELECT "name" FROM "project_branches"
+LEFT JOIN "project_branch_allowed" ON
+    "project_branch_allowed"."project_id"="project_branches"."project_id" AND
+    "project_branch_allowed"."branch_name"="project_branches"."name" AND
+    "project_branch_allowed"."user_id"=?1
+WHERE ("project_branches"."owner"=?1 OR "project_branch_allowed"."writable" IS TRUE) AND "project_branches"."project_id"=?2 AND "project_branches"."name" IN (` + names.map((x, i) => "?" + (i + 3)).join(",") + `)`, user, project, ...names)).map(x => <string> x.name);
 }
 
 export async function canMakeBranches(project: number, user: number) {
@@ -264,15 +284,15 @@ export async function canDeleteTags(project: number, user: number) {
     return (await all(CAN_DELETE_TAGS_SQL, user, project))[0].count > 0;
 }
 
-export async function canReadProject(project: number, user: number) {
-    return (await all(CAN_READ_PROJECT_SQL, project, user))[0].count > 0;
+export async function canReadProject(project: number, user: number | null) {
+    return (await all(CAN_READ_PROJECT_SQL, user, project))[0].count > 0;
 }
 
 export async function getNonWriteBranches(project: number, user: number) {
     return (await all(GET_NON_WRITABLE_PROJECT_BRANCHES_SQL, project, user)).map(x => <string> x.branch_name);
 }
 
-export async function getNonReadBranches(project: number, user: number) {
+export async function getNonReadBranches(project: number, user: number | null) {
     return (await all(GET_NON_READABLE_PROJECT_BRANCHES_SQL, project, user)).map(x => <string> x.branch_name);
 }
 
@@ -282,6 +302,8 @@ async function getMembers(project: number): Promise<ProjectMember[]> {
         mod: x.mod == 1,
         make_branches: x.make_branches == 1,
         make_subprojects: x.make_subprojects == 1,
+        make_tags: x.make_tags == 1,
+        delete_tags: x.delete_tags == 1,
     }));
 }
 
@@ -379,14 +401,14 @@ export default async function Projects(app: Express, currentVersion: number): Pr
             await fs.promises.writeFile(path.join(repoLocation, "hooks", "pre-receive"),
 `#!/bin/sh
 
-exec node ../../../dist/hook-pre-receive.js
+exec node ../../dist/hook-pre-receive.js
 `, {
     mode: 0o777
 });
             await fs.promises.writeFile(path.join(repoLocation, "hooks", "update"),
 `#!/bin/sh
 
-exec node ../../../dist/hook-update.js
+exec node ../../dist/hook-update.js "$@"
 `, {
 mode: 0o777
 });
@@ -448,7 +470,7 @@ mode: 0o777
                     return;
                 }
                 try {
-                    if (project.owner != req.user_session.id && !canReadProject(project.id, req.user_session.id)) {
+                    if (project.owner != req.user_session.id && !(await canReadProject(project.id, req.user_session.id))) {
                         next(errors.forbidden());
                         return;
                     }
@@ -497,6 +519,7 @@ mode: 0o777
                     parent: pr.parent,
                     private: pr.private === 1,
                     default_branch_permissions: branchPermToText(pr.default_branch_permissions),
+                    sshPort: sshPort,
                 },
             });
             return;
@@ -650,9 +673,26 @@ mode: 0o777
             return;
         }
 
-        if (num(req.body) && req.body !== req.user_session.id) {
+        if (str(req.body) && req.body !== req.user_session.username) {
+            var us: User;
             try {
-                await run(UPDATE_PROJECT_OWNER_SQL, req.body, req.project.id);
+                const usr = await getUser(req.body);
+                if (usr === null) {
+                    next(errors.not_found("User"));
+                    return;
+                }
+                us = usr;
+            } catch (e) {
+                next(errors.database(e));
+                return;
+            }
+
+            try {
+                const res = await run(UPDATE_PROJECT_OWNER_SQL, us.id, req.project.id);
+                if (res.changes == 0) {
+                    next(errors.not_found("User"));
+                    return;
+                }
             } catch (e) {
                 if (e.code === "SQLITE_CONSTRAINT") {
                     next(errors.not_found("User"));
@@ -662,7 +702,7 @@ mode: 0o777
                 return;
             }
             try {
-                await run(INSERT_PROJECT_MEMBER_SQL, req.project.id, req.user_session.id, 1, 1, 1, 1, 1);
+                await run(INSERT_PROJECT_MEMBER_SQL, req.project.id, req.user_session.id, false, true, true, true, true);
                 await run(DELETE_PROJECT_MEMBER_SQL, req.project.id, req.body);
                 next({
                     type: "success",
@@ -685,13 +725,17 @@ mode: 0o777
             return;
         }
 
-	//TODO: include make_tags and delete_tags
-        const members = await getMembers(req.project.id);
-        next({
-            type: "success",
-            statusCode: 200,
-            data: members,
-        });
+        try {
+            const members = await getMembers(req.project.id);
+            next({
+                type: "success",
+                statusCode: 200,
+                data: members,
+            });
+        } catch (e) {
+            next(errors.database(e));
+            return;
+        }
     });
 
     projectsApp.post("/:project/members", json({
@@ -702,10 +746,9 @@ mode: 0o777
             return;
         }
 
-	//TODO: remove mod
         const checker = dict({
             username: str,
-            mod: bool,
+            //mod: bool,
             make_branches: bool,
             make_tags: bool,
             delete_tags: bool,
@@ -730,7 +773,7 @@ mode: 0o777
         }
 
         try {
-            await run(INSERT_PROJECT_MEMBER_SQL, req.project.id, us.id, req.body.mod, req.body.make_branches, req.body.make_tags, req.body.delete_tags, req.body.make_subprojects);
+            await run(INSERT_PROJECT_MEMBER_SQL, req.project.id, us.id, /* req.body.mod */false, req.body.make_branches, req.body.make_tags, req.body.delete_tags, req.body.make_subprojects);
             next({
                 type: "success",
                 statusCode: 200,
@@ -755,9 +798,8 @@ mode: 0o777
             return;
         }
 
-	//TODO: remove mod
         const checker = dict({
-            mod: bool,
+            //mod: bool,
             make_branches: bool,
             make_tags: bool,
             delete_tags: bool,
@@ -783,7 +825,7 @@ mode: 0o777
         }
 
         try {
-            const rr = await run(UPDATE_PROJECT_MEMBER_SQL, req.body.mod, req.body.make_branches, req.body.make_tags, req.body.delete_tags, req.body.make_subprojects, req.project.id, us.id);
+            const rr = await run(UPDATE_PROJECT_MEMBER_SQL, /* req.body.mod */false, req.body.make_branches, req.body.make_tags, req.body.delete_tags, req.body.make_subprojects, req.project.id, us.id);
             if (rr.changes == 0) {
                 next(errors.not_found("Member"));
                 return;
@@ -805,10 +847,14 @@ mode: 0o777
             return;
         }
 
-	//TODO: check permissions
+        if (req.project.owner !== req.user_session?.id) {
+            next(errors.forbidden());
+            return;
+        }
+
         try {
-	    //TODO: Remove any owned branches too
-            await run(DELETE_PROJECT_MEMBER_SQL, req.project.id, req.params.user_id);
+            await run(TRANSFER_PROJECT_MEMBER_BRANCHES_SQL, req.project.owner, req.project.id, req.params.user);
+            await run(DELETE_PROJECT_MEMBER_SQL, req.project.id, req.params.user);
             next({
                 type: "success",
                 statusCode: 200,
@@ -827,7 +873,8 @@ mode: 0o777
         }
 
         try {
-            const branches: {branch_name: string, username: string, branch_permission: number}[] = await all(GET_PROJECT_BRANCHES_SQL, {1: req.project.id});
+            //TODO: the user must have read access to each branch
+            const branches: {branch_name: string, username: string, branch_permission: number}[] = await all(GET_PROJECT_BRANCHES_SQL, req.project.id);
             const result: {[key: string]: {
                 name: string,
                 default_permission: permissions,
@@ -869,20 +916,28 @@ mode: 0o777
         }
     });
 
-    projectsApp.put("/:project/branches/:branch/permission", async (req, res, next) => {
+    projectsApp.put("/:project/branches/:branch/permission", json({
+        limit: "1kb",
+        strict: false,
+    }), async (req, res, next) => {
         if (req.project == null) {
             next(errors.not_found("Project"));
             return;
         }
+        if (!permissions(req.body)) {
+            next(errors.invalid_request());
+            return;
+        }
 
-        if (req.project.owner != req.user_session?.id) {
+        if (req.project.owner != req.user_session?.id && (await getOwnedBranches(req.project.id, req.user_session?.id || -1, [req.params.branch])).length == 0) {
             next(errors.forbidden());
             return;
         }
 
+        const target = textToBranchPerm(req.body);
+
         try {
-            //TODO: wtf?? no parameters???
-            const branches = await run(UPDATE_BRANCH_PERMISSION_SQL, req.project.id, req.params.branch);
+            const branches = await run(UPDATE_BRANCH_PERMISSION_SQL, target, req.project.id, req.params.branch);
             if (branches.changes == 0) {
                 next(errors.not_found("Branch"));
                 return;
@@ -899,19 +954,27 @@ mode: 0o777
         }
     });
 
-    projectsApp.put("/:project/branches/:branch/owner", async (req, res, next) => {
+    projectsApp.put("/:project/branches/:branch/owner", json({
+        limit: "1kb",
+        strict: false,
+    }), async (req, res, next) => {
         if (req.project == null) {
             next(errors.not_found("Project"));
             return;
         }
 
-        if (req.project.owner != req.user_session?.id) {
+        if (!str(req.body)) {
+            next(errors.invalid_request());
+            return;
+        }
+
+        if (req.project.owner != req.user_session?.id && (await getOwnedBranches(req.project.id, req.user_session?.id || -1, [req.params.branch])).length == 0) {
             next(errors.forbidden());
             return;
         }
 
         try {
-            const branches = await run(UPDATE_BRANCH_CREATOR_SQL, req.project.id, req.params.branch);
+            const branches = await run(UPDATE_BRANCH_CREATOR_SQL, req.body, req.project.id, req.params.branch);
             if (branches.changes == 0) {
                 next(errors.not_found("Branch"));
                 return;
@@ -1097,6 +1160,9 @@ mode: 0o777
             return;
         }
 
+        //TODO: check for read permissions
+        
+
         const target = req.params[0];
 
         var repo: git.Repository;
@@ -1150,6 +1216,7 @@ mode: 0o777
             return;
         }
 
+        //TODO: completely fix this
         const refs = await fs.promises.readdir("resources/" + req.project.id);
         const ref = refs.find(x => x === req.params.ref);
         if (ref == null) {

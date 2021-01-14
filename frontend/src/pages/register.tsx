@@ -1,6 +1,8 @@
 import Page from "components/page";
 import React from "react";
 import { Redirect } from "react-router-dom";
+import { RegisterItem } from "components/navbar/item";
+import Navbar from "components/navbar";
 
 export default class Register extends React.Component {
     state: {registering: boolean, registered: boolean, error: any} = {
@@ -66,22 +68,28 @@ export default class Register extends React.Component {
 
     render() {
         if (this.state.registered) {
-            return <Page>
-                <h1>You have registered.</h1>
-                <p>An activation key has been sent to your email. Activate your account to login.</p>
-            </Page>
+            return <>
+                <Navbar user={{username: "", email: ""}}><RegisterItem path={"/register"}>Register</RegisterItem></Navbar>
+                <Page>
+                    <h1>You have registered.</h1>
+                    <p>An email has been sent to your account with activation instructions.</p>
+                </Page>
+            </>;
         } else {
-            return <Page>
-                <h1>Register</h1>
-                <form onSubmit={(evt) => this.submit(evt)}>
-                    <p>Email: <input name="email" type="email"></input></p>
-                    <p>Username: <input name="username" type="username"></input></p>
-                    <p>Password: <input name="password" type="password"></input></p>
-                    <p>Repeat password: <input name="password2" type="password"></input></p>
-                    <input type="submit" value="Login" disabled={this.state.registering}></input>
-                    {this.state.error != null ? <>{this.state.error.message}</> : <></>}
-                </form>
-            </Page>;
+            return <>
+                <Navbar user={{username: "", email: ""}}><RegisterItem path={"/register"}>Register</RegisterItem></Navbar>
+                <Page>
+                    <h1>Register</h1>
+                    <form onSubmit={(evt) => this.submit(evt)}>
+                        <p>Email: <input name="email" type="email"></input></p>
+                        <p>Username: <input name="username" type="username"></input></p>
+                        <p>Password: <input name="password" type="password"></input></p>
+                        <p>Repeat password: <input name="password2" type="password"></input></p>
+                        <input type="submit" value="Login" disabled={this.state.registering}></input>
+                        {this.state.error != null ? <>{this.state.error.message}</> : <></>}
+                    </form>
+                </Page>
+            </>;
         }
     }
 }

@@ -112,7 +112,10 @@ async function prepareHookDir(userId: number, projectId: number, pushId: number,
     return hook_dir;
 }
 
-export async function run(userId: number, project: string, env: {[key: string]: string}, channel: ServerChannel) {
+export async function run(userId: number | null, project: string, env: {[key: string]: string}, channel: ServerChannel) {
+    if (userId == null) {
+        return notGitRepo(project, channel);
+    }
     const p = await findProject(project);
     if (p == null) {
         return notGitRepo(project, channel);
@@ -122,8 +125,9 @@ export async function run(userId: number, project: string, env: {[key: string]: 
         return notGitRepo(project, channel);
     }
 
-    //const hiddenRefs = (await getNonWriteBranches(p.id, userId)).flatMap(x => ["-c", "receive.hideRefs=refs/heads/" + x]);
+    console.log("Pushing...");
     const pushId = await createPush(userId, p.id, BigInt(Date.now()));
+    console.log("Push id: " + pushId);
     const targetDir = path.resolve("repo", p.id + ".git");
     const outputDir = PushFolder(p.id, pushId);
     await fs.promises.mkdir(outputDir);

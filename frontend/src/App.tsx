@@ -5,11 +5,12 @@ import Login from 'pages/login';
 import Logout from 'pages/logout';
 import ProjectPage from 'pages/project';
 import Register from 'pages/register';
-import UserPage from 'pages/user';
+import UserPage from 'pages/user/user';
 import Verify from 'pages/verify';
 import React from 'react';
 import { BrowserRouter as Router, Switch, Route, Redirect, useParams, useLocation } from 'react-router-dom';
 import * as styles from 'App.less';
+import HomePage from 'pages/home';
 
 styles;
 
@@ -78,10 +79,10 @@ export default class App extends React.Component<{}, AppState, any> {
             </Page>
         }
 
-        function NavbarLocation(props: {user: User}) {
+        /*function NavbarLocation(props: {user: User}) {
             const loc = useLocation();
             return <Navbar user={props.user} location={loc.pathname.split("/").filter(x => x.length > 0)}></Navbar>;
-        }
+        }*/
 
         function VerifyLocation() {
             const loc = useLocation();
@@ -89,7 +90,7 @@ export default class App extends React.Component<{}, AppState, any> {
             return <Verify username={username} verifyKey={new URLSearchParams(loc.search).get("key") || undefined}></Verify>;
         }
 
-        function UsersLocation(props: {user: User | null}) {
+        function UsersLocation(props: {user: User}) {
             const loc = useLocation();
             const { username } = useParams<{username: string}>();
             return <UserPage target={username} user={props.user}></UserPage>
@@ -98,7 +99,6 @@ export default class App extends React.Component<{}, AppState, any> {
         var user = this.state.user;
         
         return <Router>
-            <NavbarLocation user={this.state.user}></NavbarLocation>
             <Switch>
                 <Route path="/login">
                     {this.state.user.username === "" ? <Login onLogin={user => this.setState(state => ({...state, user: user}))}></Login> : <RedirectBack></RedirectBack>}
@@ -120,7 +120,7 @@ export default class App extends React.Component<{}, AppState, any> {
                 </Route>
                 <Route path="/p/:project" render={props => <ProjectPage {...props} parent={[]} user={user}></ProjectPage>}></Route>
                 <Route path="/">
-                    <ProjectList parent={[]} user={this.state.user}></ProjectList>
+                    <HomePage user={this.state.user}></HomePage>
                 </Route>
             </Switch>
         </Router>;

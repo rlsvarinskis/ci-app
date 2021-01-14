@@ -1,3 +1,5 @@
+import Navbar from 'components/navbar';
+import { ProfileItem } from 'components/navbar/item';
 import Page from 'components/page';
 import React from 'react';
 import { Redirect, useParams } from 'react-router-dom';
@@ -83,10 +85,13 @@ export default class Verify extends React.Component<VerifyProps, VerifyState> {
                 <Redirect to="/login"></Redirect>
             </Page>
         }
-        return <Page>
-            <h1>Verify account</h1>
-            <p>Username: <input name="username" value={this.state.username} disabled={true}></input></p>
-            <p>Activation key: <input disabled={this.state.verifying != null} name="key" size={22} value={this.state.verifyKey} onInput={evt => this.updateKey(evt.currentTarget.value)}></input></p>
-        </Page>;
+        return <>
+            <Navbar user={{username: "", email: ""}}><ProfileItem path={"/verify/" + this.props.username}>{this.props.username}</ProfileItem></Navbar>
+            <Page>
+                <h1>Verify account</h1>
+                <p>Username: <input name="username" value={this.state.username} disabled={true}></input></p>
+                <p>Activation key: <input disabled={this.state.verifying != null} name="key" size={22} value={this.state.verifyKey} onInput={evt => this.updateKey(evt.currentTarget.value)}></input></p>
+            </Page>
+        </>;
     }
 }

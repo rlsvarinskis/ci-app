@@ -1,10 +1,9 @@
 import stream from 'stream';
 
-const NEWLINE = 0x20;
+const NEWLINE = 0x0a;
 
 export default class LineReader {
     private input: stream.Readable;
-    private lastPointer: number = 0;
     private buffer: Buffer[] = [];
     private lastBuffer: Buffer | null = null;
 
@@ -22,6 +21,11 @@ export default class LineReader {
                 const bufs = this.buffer.map(x => x.toString("utf8"));
                 if (i > 0) {
                     bufs.push(this.lastBuffer.subarray(0, i).toString("utf8"));
+                    if (i + 1 < this.lastBuffer.length) {
+                        this.lastBuffer = this.lastBuffer.subarray(i + 1);
+                    } else {
+                        this.lastBuffer = null;
+                    }
                 }
                 this.buffer = [];
                 return bufs.join("");
@@ -39,7 +43,6 @@ export default class LineReader {
             } else {
                 this.buffer.push(this.lastBuffer);
                 this.lastBuffer = null;
-                this.lastPointer = 0;
             }
         }
         if (!this.input.readable) {
@@ -57,7 +60,6 @@ export default class LineReader {
                     } else {
                         this.buffer.push(this.lastBuffer);
                         this.lastBuffer = null;
-                        this.lastPointer = 0;
                     }
                 }
             };
@@ -67,8 +69,13 @@ export default class LineReader {
             };
             const end = () => {
                 removeListeners();
-                resolve(this.buffer.map(x => x.toString("utf8")).join(""));
+                const result = this.buffer.map(x => x.toString("utf8")).join("");
                 this.buffer = [];
+                if (result.length === 0) {
+                    resolve(null);
+                } else {
+                    resolve(result);
+                }
             };
 
             const removeListeners = () => {
