@@ -8,6 +8,12 @@ import { getAPIURL, getBaseURL, ProjectNavbarItems, ProjectPageProps } from '../
 import page from 'pages/project/page/page.less';
 import ReactMarkdown from 'react-markdown';
 import gfm from 'remark-gfm';
+import { ViewDirectory } from './directory';
+import styles from './directory.less';
+import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Prism } from 'react-syntax-highlighter';
+import { string } from 'yargs';
+const map = require('language-map');
 
 interface ProjectSourceProps extends ProjectPageProps {
     match?: match<{
@@ -125,7 +131,7 @@ class RetrieveFileContents extends React.Component<FileContentsProps, FileConten
             const cm = this.state.contentMime.split(";", 2)[0];
             if (cm.startsWith("image/")) {
                 pageResults = <ViewImage content={this.state.content} />
-            } else {
+            } else if (cm.startsWith("text/")) {
                 switch (cm) {
                     case "text/directory":
                         pageResults = <ViewDirectory baseUrl={getBaseURL(this.props.project, "src", ...this.props.filename)} content={this.state.content} />
@@ -134,9 +140,11 @@ class RetrieveFileContents extends React.Component<FileContentsProps, FileConten
                         pageResults = <ViewMarkdown content={this.state.content} />
                         break;
                     default:
-                        pageResults = <ViewFile content={this.state.content} />
+                        pageResults = <ViewTextFile content={this.state.content} mimeType={cm} filename={this.props.filename[this.props.filename.length - 1]} />
                         break;
                 }
+            } else {
+                pageResults = <ViewTextFile content={this.state.content} mimeType={cm} filename={this.props.filename[this.props.filename.length - 1]} />
             }
         } else if (this.state.loading === true) {
             pageResults = <div>Loading...</div>;
@@ -150,7 +158,8 @@ class RetrieveFileContents extends React.Component<FileContentsProps, FileConten
                 <ProjectSidebar baseurl={getBaseURL(this.props.project)} active="src"></ProjectSidebar>
                 <div className={page.content + " " + page.mini}>
                     <div className={page.page}>
-                        <h1>{name}</h1>
+                        {this.props.filename.length > 0 ? <Link to={getBaseURL(this.props.project, "src", ...this.props.filename.slice(0, this.props.filename.length - 1))} className={styles.back}><i className="fas fa-chevron-left" /></Link> : <></>}
+                        <h2 className={styles.filename}>{name}</h2>
                         {pageResults}
                     </div>
                 </div>
@@ -159,71 +168,13 @@ class RetrieveFileContents extends React.Component<FileContentsProps, FileConten
     }
 }
 
-interface DirectoryProps {
-    baseUrl: string;
-    content: Blob;
-};
-
-interface DirectoryState {
-    folders?: {
-        mode: string;
-        type: string;
-        name: string;
-    }[];
-    lastContent?: Blob;
-};
-
-class ViewDirectory extends React.Component<DirectoryProps, DirectoryState> {
-    state: DirectoryState = {};
-
-    componentDidMount() {
-        this.reload();
-    }
-
-    componentDidUpdate() {
-        this.reload();
-    }
-
-    reload() {
-        const content = this.props.content;
-        console.log("Reloading!", content, this.state.lastContent, this.state.lastContent === content, this.state.lastContent == content);
-        if (this.state.lastContent !== content) {
-            content.text().then(result => {
-                console.log("Reloaded!");
-                this.setState({
-                    folders: result.split("\n").map(x => {
-                        var fold = x.trim().split(" ");
-                        return {
-                            mode: fold[0],
-                            type: fold[1],
-                            name: fold[2]
-                        };
-                    }),
-                    lastContent: content
-                });
-            }, error => {
-                console.error(error);
-            });
-        }
-    }
-
-    render() {
-        return <div>
-            {
-                ...(this.state.folders != null ? this.state.folders.map(folder => {
-                    return <div>
-                        <Link key={this.props.baseUrl + "/" + folder.name} to={this.props.baseUrl + "/" + folder.name}>
-                            <i className={folder.type === "tree" ? "fas fa-folder" : "fas fa-file"} />{folder.name}
-                        </Link>
-                    </div>;
-                }) : [])
-            }
-        </div>
-    }
-}
-
 interface FileProps {
     content: Blob;
+};
+
+interface TextFileProps extends FileProps {
+    mimeType: string;
+    filename: string;
 };
 
 interface FileState {
@@ -231,8 +182,14 @@ interface FileState {
     lastContent?: Blob;
 };
 
-class ViewFile extends React.Component<FileProps, FileState> {
-    state: FileState = {};
+interface TextFileState extends FileState {
+    language: string;
+}
+
+class ViewTextFile extends React.Component<TextFileProps, TextFileState> {
+    state: TextFileState = {
+        language: ""
+    };
 
     componentDidMount() {
         this.reload();
@@ -243,7 +200,6 @@ class ViewFile extends React.Component<FileProps, FileState> {
     }
 
     reload() {
-        console.log("Reloading!");
         if (this.state.lastContent !== this.props.content) {
             if (this.props.content.size > 1024 * 1024 * 8) {
                 this.setState({
@@ -252,9 +208,20 @@ class ViewFile extends React.Component<FileProps, FileState> {
                 });
             } else {
                 this.props.content.text().then(result => {
+                    const extension = this.props.filename.split(".");
+                    let language = "";
+                    if (extension.length > 1) {
+                        const last = extension[extension.length - 1];
+                        const possibleKey = Object.keys(map).find(x => map[x].filenames?.some((y: string) => y === this.props.filename) || map[x].extensions?.some((y: string) => y === last));
+                        if (possibleKey != null) {
+                            const possibleLanguage = map[possibleKey];
+                            language = possibleLanguage.aceMode || possibleKey.toLowerCase();
+                        }
+                    }
                     this.setState({
                         content: result,
-                        lastContent: this.props.content
+                        lastContent: this.props.content,
+                        language: language
                     });
                 }, error => {
                     console.error(error);
@@ -269,13 +236,11 @@ class ViewFile extends React.Component<FileProps, FileState> {
         } else if (this.state.content == null) {
             return <div>Loading...</div>;
         } else {
-            return <div>
-                <pre>
-                    <code>
-                        {this.state.content}
-                    </code>
-                </pre>
-            </div>
+            return <Prism style={vs} language={this.state.language} showLineNumbers={true} customStyle={{
+                borderColor: "rgba(0, 0, 0, 0.05)"
+            }}>
+                {this.state.content}
+            </Prism>
         }
     }
 }
@@ -318,7 +283,7 @@ class ViewMarkdown extends React.Component<FileProps, FileState> {
         } else if (this.state.content == null) {
             return <div>Loading...</div>;
         } else {
-            return <div>
+            return <div className={styles.filedisplay}>
                 <ReactMarkdown plugins={[gfm]}>{this.state.content}</ReactMarkdown>
             </div>
         }
@@ -337,8 +302,8 @@ class ViewImage extends React.Component<FileProps, ImageState> {
     }
 
     render() {
-        return <div>
-            <img src={this.state.url} />
+        return <div className={styles.filedisplay + " " + styles.imagedisplay}>
+            <img src={this.state.url} style={{maxWidth: "45rem"}} />
         </div>
     }
 }

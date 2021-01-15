@@ -34,3 +34,9 @@ export class FileItem extends React.Component<FileItemProps> {
         }
     }
 }
+
+export class EmptyItem extends React.Component {
+    render() {
+        return <div className={styles.empty}>{this.props.children}</div>
+    }
+}

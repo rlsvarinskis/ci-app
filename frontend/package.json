@@ -4,7 +4,8 @@
   "description": "CI frontend",
   "main": "dist/index.js",
   "scripts": {
-    "build": "webpack && cp -r res/* dist"
+    "build": "webpack",
+    "watch": "webpack --watch"
   },
   "keywords": [
     "ci",
@@ -18,10 +19,12 @@
   "license": "MIT",
   "dependencies": {
     "@types/react-router-dom": "^5.1.6",
+    "language-map": "^1.4.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-markdown": "^5.0.3",
     "react-router-dom": "^5.2.0",
+    "react-syntax-highlighter": "^15.4.3",
     "remark-gfm": "^1.0.0",
     "xterm-for-react": "^1.0.4"
   },
@@ -29,6 +32,7 @@
     "@teamsupercell/typings-for-css-modules-loader": "^2.4.0",
     "@types/react": "^17.0.0",
     "@types/react-dom": "^17.0.0",
+    "@types/react-syntax-highlighter": "^13.5.0",
     "css-loader": "^5.0.1",
     "less": "^3.13.0",
     "less-loader": "^7.1.0",

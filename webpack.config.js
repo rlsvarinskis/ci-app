@@ -1,22 +1,31 @@
 const path = require('path');
 const webpack = require('webpack');
 const webpackNodeExternals = require('webpack-node-externals');
+const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
-  mode: 'production',
+  mode: 'development',
+  devtool: 'inline-source-map',
   entry: {
     index: './src/main.ts',
     "hooks/pre-receive": './src/hooks/pre-receive.ts',
     "hooks/update": './src/hooks/update.ts',
   },
-  plugins: [],
+  plugins: [new CopyPlugin({
+    patterns: [
+      {from: "res", to: "dist"}
+    ]
+  })],
 
   module: {
     rules: [
       {
         test: /\.ts$/,
         use: 'ts-loader',
-        exclude: /node_modules/,
+        exclude: [
+          /node_modules/,
+          /frontend/
+        ],
       }
     ]
   },

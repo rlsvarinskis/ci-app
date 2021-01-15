@@ -1,5 +1,6 @@
 declare namespace UseritemLessNamespace {
   export interface IUseritemLess {
+    empty: string;
     filedownload: string;
     usericon: string;
     useritem: string;

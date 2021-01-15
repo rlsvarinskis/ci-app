@@ -5,7 +5,7 @@ import { ProjectMember } from 'components/projectlist';
 import page from 'pages/project/page/page.less';
 import infobar from './infobar/infobar.less';
 import ProjectSidebar from 'components/sidebar';
-import { FileItem, UserItem } from '../../../components/useritem/useritem';
+import { EmptyItem, FileItem, UserItem } from '../../../components/useritem/useritem';
 import ToggleButton from 'components/togglebutton';
 import selects from 'components/select/index.less';
 import { CloneMenu } from 'components/clonemenu';
@@ -171,7 +171,7 @@ class ProjectDescription extends React.Component<ProjectDescriptionPageProps, Pr
                     (!isOwner && this.props.members.length === 0) ? <></> : <div>
                         {isOwner && <Link to={devsUrl} className={infobar.link + " " + infobar.sectionedit}>Change developers</Link>}
                         <div className={infobar.sectiontitle}>Developers</div>
-                        {this.props.members.length === 0 && /*Empty*/ <></>}
+                        {this.props.members.length === 0 && <EmptyItem>No other developers</EmptyItem>}
                         {this.props.members.map(x => <UserItem key={x.username} username={x.username} />)}
                         <Link to={devsUrl} className={infobar.link + " " + infobar.sectionmore}>View all developers</Link>
                     </div>
@@ -191,22 +191,30 @@ interface ProjectFilesState {
         folder: boolean;
         name: string;
     }[]>;
+    lastProject: string[];
 };
 
 class ProjectFiles extends React.Component<ProjectFilesProps, ProjectFilesState> {
-    state: ProjectFilesState = {
-        folder: []
-    };
+    state: ProjectFilesState;
 
-    update() {
-        load("GET", getAPIURL(this.props.project, "res", "branch", "master", ...this.state.folder) + (this.state.folder.length === 0 ? "/" : "")).then(result => {
+    constructor(props: ProjectFilesProps) {
+        super(props);
+        this.state = {
+            folder: [],
+            lastProject: [...props.project.parent, props.project.project]
+        };
+    }
+
+    update(folder: string[]) {
+        load("GET", getAPIURL(this.props.project, "res", "branch", "master", ...folder) + (folder.length === 0 ? "/" : "")).then(result => {
             if (result.type === "success") {
                 result.data.data.text().then(text => {
+                    text = text.trim();
                     this.setState({
                         data: {
                             type: "success",
                             code: 200,
-                            data: text.split("\r\n").map(line => {
+                            data: text.length === 0 ? [] : text.split("\r\n").map(line => {
                                 const sp = line.split(" ", 2);
                                 return {
                                     folder: sp[0] === "folder",
@@ -233,7 +241,22 @@ class ProjectFiles extends React.Component<ProjectFilesProps, ProjectFilesState>
     }
 
     componentDidMount() {
-        this.update();
+        this.update(this.state.folder);
+    }
+
+    updateFolder(folder: string[]) {
+        this.setState({
+            folder: folder,
+        });
+        this.update(folder);
+    }
+
+    componentDidUpdate() {
+        if ([...this.props.project.parent, this.props.project.project].join("/") === this.state.lastProject.join("/")) {
+            return;
+        }
+
+        this.update(this.state.folder);
     }
 
     renderLoading() {
@@ -259,20 +282,25 @@ class ProjectFiles extends React.Component<ProjectFilesProps, ProjectFilesState>
                 <div className={infobar.sectiontitle}>master</div>
                 {
                     this.state.folder.length > 0 ? 
-                    <FileItem filename={".."} target={() => {
-                        this.setState(state => {
-                            folder: state.folder.slice(0, state.folder.length - 1)
-                        });
-                    }} icon={{type: "url", url: "https://www.ispsd.com/wp-content/uploads/2013/02/wpid-folder-icon-512x512.png"}} />: <></>
+                    <FileItem
+                        key={".."}
+                        filename={".."}
+                        target={() => this.updateFolder(this.state.folder.slice(0, this.state.folder.length - 1))}
+                        icon={{type: "url", url: "https://www.ispsd.com/wp-content/uploads/2013/02/wpid-folder-icon-512x512.png"}}
+                    /> : <></>
                 }
                 {
                     ...d.data.map(file => {
                         const icon = file.folder ? "https://www.ispsd.com/wp-content/uploads/2013/02/wpid-folder-icon-512x512.png" : file.name.endsWith(".zip") ? "https://www.iconhot.com/icon/png/sleek-xp-software/256/zip.png" : "https://i.pinimg.com/originals/7f/d2/e4/7fd2e46b2da9819e667fb75caf475cf7.png";
-                        return <FileItem filename={file.name} target={file.folder ? () => {
-                            this.setState(state => {
-                                folder: [...state.folder, file.name]
-                            });
-                        } : getAPIURL(this.props.project, "res", "branch", "master", ...this.state.folder, file.name)} icon={{type: "url", url: icon}}></FileItem>
+                        return <FileItem
+                            key={[...this.state.folder, file.name].join("/")}
+                            filename={file.name}
+                            target={file.folder ? 
+                                () => this.updateFolder([...this.state.folder, file.name]) :
+                                getAPIURL(this.props.project, "res", "branch", "master", ...this.state.folder, file.name)
+                            }
+                            icon={{type: "url", url: icon}}
+                        />
                     })
                 }
             </div>;

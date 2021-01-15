@@ -172,7 +172,7 @@ class ProjectBranch extends React.Component<{
         return <div>
             <h2>{branch.name}</h2>
             <div>Default permission: <select disabled={branch.owner !== this.props.user.username} onChange={evt => this.setDefaultBP(evt)} value={branch.default_permission}>{BranchPermissions.map(x => <option key={x} value={x}>{BranchPermissionsText[x]}</option>)}</select></div>
-            {branch.users.map(u => <ProjectBranchUser project={this.props.project} user={this.props.user} branch={this.props.branch} branchUser={u} onUpdate={u => this.updateBranchUser(u)} onDelete={u => this.removeBranchUser(u)} />)}
+            {branch.users.map(u => <ProjectBranchUser key={u.username} project={this.props.project} user={this.props.user} branch={this.props.branch} branchUser={u} onUpdate={u => this.updateBranchUser(u)} onDelete={u => this.removeBranchUser(u)} />)}
             {branch.owner === this.props.user.username && <form onSubmit={evt => this.addUser(evt)}>
                 <input name="username" placeholder="Username" />
                 {" "}Can write: <input name="writable" type="checkbox" />

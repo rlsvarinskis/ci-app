@@ -5,6 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "webpack",
+    "watch": "webpack --watch",
     "start": "cd dist && node index.js --http-port=8000 --ssh-port=2222"
   },
   "keywords": [
@@ -28,6 +29,7 @@
     "@types/ssh2": "^0.5.46",
     "argon2": "^0.27.0",
     "cookie-session": "^1.4.0",
+    "copy-webpack-plugin": "^7.0.0",
     "express": "^4.17.1",
     "express-validator": "^6.7.0",
     "jimp": "^0.16.1",
