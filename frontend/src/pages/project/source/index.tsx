@@ -12,7 +12,6 @@ import { ViewDirectory } from './directory';
 import styles from './directory.less';
 import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Prism } from 'react-syntax-highlighter';
-import { string } from 'yargs';
 const map = require('language-map');
 
 interface ProjectSourceProps extends ProjectPageProps {

@@ -1262,6 +1262,9 @@ mode: 0o777
                 res.status(200);
                 res.send(files.map(x => (x.isDirectory() ? "folder" : "file") + " " + x.name).join("\r\n"));
             } else {
+                const fileNames = target.split("/");
+                const lastFile = fileNames[fileNames.length - 1];
+                res.setHeader("Content-Disposition", "attachment; filename=\"" + encodeURIComponent(lastFile) + "\"")
                 res.sendFile(resultingFile);
             }
         } catch (e) {

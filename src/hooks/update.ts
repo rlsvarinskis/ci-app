@@ -114,7 +114,7 @@ async function start() {
 
     try {
         if (operation !== "deleting") {
-            child_process.execSync("git init . && git remote add origin \"" + remoteRepo + "\" && git fetch origin " + newHex + (operation !== "creating" ? " && git fetch origin " + oldHex : "") + " && git reset --hard " + newHex, {
+            child_process.execSync("git init -q . && git remote add origin \"" + remoteRepo + "\" && git fetch -q origin " + newHex + (operation !== "creating" ? " && git fetch -q origin " + oldHex : "") + " && git reset --hard " + newHex, {
                 cwd: PROJECT_FOLDER,
                 env: {"GIT_DIR": undefined}
             });
