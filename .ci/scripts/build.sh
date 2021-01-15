@@ -14,6 +14,6 @@ cp -r ../../frontend/dist/ frontend
 mkdir profiles
 cp ../profiles/default.jpeg profiles
 
-cd ..
-mv dist ci-app
+cd ../..
+mv backend/dist ci-app
 zip -r ../output/ci-app.zip ci-app
