@@ -43,11 +43,8 @@ export async function start(projectId: number, pushId: number, PUSH_FOLDER: stri
     const TAG_FOLDER = TagFolder(PUSH_FOLDER);
     const BRANCH_FOLDER = BranchFolder(PUSH_FOLDER);
 
-    const tagP = fs.readdir(TAG_FOLDER);
-    const branchP = fs.readdir(BRANCH_FOLDER);
-
     try {
-        const branches = await branchP;
+        const branches = await fs.readdir(BRANCH_FOLDER);
         for (let i = 0; i < branches.length; i++) {
             const name = branches[i];
             try {
@@ -61,7 +58,7 @@ export async function start(projectId: number, pushId: number, PUSH_FOLDER: stri
     }
 
     try {
-        const tags = await tagP;
+        const tags = await fs.readdir(TAG_FOLDER);
         for (let i = 0; i < tags.length; i++) {
             const name = tags[i];
             try {

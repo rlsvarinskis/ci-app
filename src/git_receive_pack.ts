@@ -135,7 +135,7 @@ export async function run(userId: number | null, project: string, env: {[key: st
     env["HOME"] = await prepareHookDir(userId, p.id, pushId, targetDir, outputDir, dbFile);
 
     return await new Promise<void>(resolve => {
-        const process = cp.spawn("git", ["receive-pack", targetDir], {
+        const process = cp.spawn("git-receive-pack", [targetDir], {
             env: env
         });
     
