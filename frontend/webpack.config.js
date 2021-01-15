@@ -1,10 +1,15 @@
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const path = require('path');
 const webpack = require('webpack');
+const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
   plugins: [new MiniCssExtractPlugin({
     filename: "styles.css"
+  }), new CopyPlugin({
+    patterns: [
+      {from: "res", to: path.resolve(__dirname, "..", "dist", "frontend")}
+    ]
   })],
   mode: 'development',
   entry: './src/index.tsx',

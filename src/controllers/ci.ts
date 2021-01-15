@@ -6,6 +6,7 @@ import { parse } from 'url';
 import fs from 'fs';
 import path from 'path';
 import { BranchFolder, PushFolder, TagFolder } from "hooks/folders";
+import WebSocket from 'ws';
 
 const CREATE_TABLES: string[][] = [
     []
@@ -451,6 +452,10 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
             async readHeader() {
                 try {
                     while (this.headerRead < 5) {
+                        if (ws.readyState !== WebSocket.OPEN) {
+                            this.waitForMore();
+                            return;
+                        }
                         const read = await this.file.read(headerBuffer, this.headerRead, 5 - this.headerRead);
                         if (read.bytesRead === 0) {
                             this.waitForMore();
@@ -478,6 +483,10 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
                             this.waitForMore();
                             return;
                         }
+                        if (ws.readyState !== WebSocket.OPEN) {
+                            this.waitForMore();
+                            return;
+                        }
                         ws.send(JSON.stringify({
                             type: this.bodyType,
                             data: dataBuffer.slice(0, read.bytesRead).toString("base64")
@@ -500,6 +509,10 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
                 watcher.close();
             }
         }
+
+        ws.on("close", () => {
+            fr.setDone();
+        });
 
         let fst: fs.promises.FileHandle;
         try {
