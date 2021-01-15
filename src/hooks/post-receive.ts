@@ -134,13 +134,14 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
 
         for (let i = 0; i < dirs.length; i++) {
             const ex = child_process.spawn("lxc", ["exec", containerName, "--cwd", "/root/project", "--", "/root/project/.ci/scripts/" + dirs[i], refName]);
-            const OUT = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "out"));
+            const OUT = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "out"), "binary");
             function lengthAsBytes(length: number) {
                 const int = length & 0xFFFFFFFF;
                 return Uint8Array.from([(length >> 24) & 0xFF, (length >> 16) & 0xFF, (length >> 8) & 0xFF, length & 0xFF]);
             }
             //Stream the outputs of the process into the out and err files
             ex.stderr.on("data", (data: Buffer) => {
+                console.log("err", data);
                 //Writes should be atomic, so the output file will end up being an interleaved log of <STREAM ID> <CHUNK LENGTH> <CHUNK>
                 if (OUT.write(Buffer.concat([Uint8Array.from([0x01]), lengthAsBytes(data.length), data])) === false) {
                     ex.stdout.pause();
@@ -148,6 +149,7 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
                 }
             });
             ex.stdout.on("data", (data: Buffer) => {
+                console.log("out", data);
                 //Writes should be atomic, so the output file will end up being an interleaved log of <STREAM ID> <CHUNK LENGTH> <CHUNK>
                 if (OUT.write(Buffer.concat([Uint8Array.from([0x00]), lengthAsBytes(data.length), data])) === false) {
                     ex.stdout.pause();
