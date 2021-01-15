@@ -30,7 +30,7 @@ export class FileItem extends React.Component<FileItemProps> {
         if (typeof t === "function") {
             return <a href="#" onClick={() => t()} className={styles.useritem}><img src={this.props.icon.type === "url" ? this.props.icon.url : ""} className={styles.usericon}></img>{this.props.filename}<i className={"fas fa-file-download " + styles.filedownload}></i></a>;
         } else {
-            return <a href={t} className={styles.useritem}><img src={this.props.icon.type === "url" ? this.props.icon.url : ""} className={styles.usericon}></img>{this.props.filename}<i className={"fas fa-file-download " + styles.filedownload}></i></a>;
+            return <a href={t} target="_blank" className={styles.useritem}><img src={this.props.icon.type === "url" ? this.props.icon.url : ""} className={styles.usericon}></img>{this.props.filename}<i className={"fas fa-file-download " + styles.filedownload}></i></a>;
         }
     }
 }

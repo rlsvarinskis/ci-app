@@ -1260,7 +1260,7 @@ mode: 0o777
                 });
                 res.setHeader("Content-type", "text/directory");
                 res.status(200);
-                res.send(files.map(x => x.isDirectory() ? "folder" : "file" + " " + x.name).join("\r\n"));
+                res.send(files.map(x => (x.isDirectory() ? "folder" : "file") + " " + x.name).join("\r\n"));
             } else {
                 res.sendFile(resultingFile);
             }
