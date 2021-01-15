@@ -220,6 +220,17 @@ class ProjectPushInfo extends React.Component<{
         });
     }
 
+    componentWillUnmount() {
+        if (this.state.ws != null) {
+            const s = this.state.ws.readyState;
+            this.state.ws.onclose = null;
+            this.state.ws.onmessage = null;
+            if (s === WebSocket.OPEN || s === WebSocket.CONNECTING) {
+                this.state.ws.close();
+            }
+        }
+    }
+
     render() {
         if (this.state.data.type === "success") {
             const d = this.state.data.data;
@@ -324,11 +335,25 @@ class ProjectPushScriptLogs extends React.Component<ProjectPushScriptProps, Proj
                 ws: undefined
             });
         };
+        this.setState({
+            ws: ws
+        });
         return ws;
     }
 
     componentDidMount() {
         this.openConnection();
+    }
+
+    componentWillUnmount() {
+        if (this.state.ws != null) {
+            const s = this.state.ws.readyState;
+            this.state.ws.onclose = null;
+            this.state.ws.onmessage = null;
+            if (s === WebSocket.OPEN || s === WebSocket.CONNECTING) {
+                this.state.ws.close();
+            }
+        }
     }
 
     render() {

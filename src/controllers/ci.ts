@@ -388,6 +388,8 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
         const TARGET_FOLDER = path.join(REFTYPE_FOLDER, req.params.refname, "streams", req.params.script);
         const OUTPUT_FILE = path.join(TARGET_FOLDER, "out");
 
+        let hasEnd = false;
+
         try {
             const dir = await fs.promises.readdir(TARGET_FOLDER);
             if (!dir.some(x => x === "out")) {
@@ -395,6 +397,7 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
                 ws.close();
                 return;
             }
+            hasEnd = dir.some(x => x === "res");
         } catch (e) {
             ws.send(JSON.stringify(errors.not_found("Script")));
             ws.close();
@@ -407,6 +410,7 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
         class FR {
             file: fs.promises.FileHandle;
             active: boolean = false;
+            shouldClose: boolean = false;
             header: boolean = true;
             headerRead: number = 0;
             bodyType: "out" | "err" = "out";
@@ -428,12 +432,28 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
                 }
             }
 
+            waitForMore() {
+                this.active = false;
+                if (this.shouldClose) {
+                    this.shouldClose = false;
+                    this.close();
+                }
+            }
+
+            setDone() {
+                if (!this.active) {
+                    this.close();
+                } else {
+                    this.shouldClose = true;
+                }
+            }
+
             async readHeader() {
                 try {
                     while (this.headerRead < 5) {
                         const read = await this.file.read(headerBuffer, this.headerRead, 5 - this.headerRead);
                         if (read.bytesRead === 0) {
-                            this.active = false;
+                            this.waitForMore();
                             return;
                         }
                         this.headerRead += read.bytesRead;
@@ -446,9 +466,7 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
                     await this.readBody();
                 } catch (e) {
                     ws.send(JSON.stringify(errors.database(e)));
-                    ws.close();
                     this.close();
-                    watcher.close();
                 }
             }
 
@@ -457,7 +475,7 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
                     while (this.bodyLength - this.readLength > 0) {
                         const read = await this.file.read(dataBuffer, 0, Math.min(65536, this.bodyLength - this.readLength));
                         if (read.bytesRead === 0) {
-                            this.active = false;
+                            this.waitForMore();
                             return;
                         }
                         ws.send(JSON.stringify({
@@ -472,39 +490,38 @@ export default async function CI(app: Router, currentVersion: number): Promise<n
                     await this.readHeader();
                 } catch (e) {
                     ws.send(JSON.stringify(errors.database(e)));
-                    ws.close();
                     this.close();
-                    watcher.close();
                 }
             }
 
             close() {
+                ws.close();
                 this.file.close();
+                watcher.close();
             }
         }
 
-        const watcher = fs.watch(TARGET_FOLDER, (action, file) => {
-            if (action === "change" && file === "out") {
-                if (fr != null) {
-                    fr.setActive();
-                }
-            } else if (action === "rename" && file === "res") {
-                ws.close();
-                watcher.close();
-                fr?.close();
-            }
-        });
-        let fr: FR | null = null;
-
+        let fst: fs.promises.FileHandle;
         try {
-            fr = new FR(await fs.promises.open(OUTPUT_FILE, "r"));
-            fr.setActive();
+            fst = await fs.promises.open(OUTPUT_FILE, "r");
         } catch (e) {
             ws.send(JSON.stringify(errors.database(e)));
             ws.close();
-            watcher.close();
             return;
         }
+
+        let fr = new FR(fst);
+        fr.setActive();
+        const watcher = fs.watch(TARGET_FOLDER, (action, file) => {
+            if (action === "change" && file === "out") {
+                fr.setActive();
+            } else if (action === "rename" && file === "res") {
+                fr.setDone();
+            }
+        });
+        if (hasEnd) {
+            fr.setDone();
+        } 
     });
 
     app.use("/pushes", ciApp);

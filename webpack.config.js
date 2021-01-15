@@ -24,7 +24,8 @@ module.exports = {
         use: 'ts-loader',
         exclude: [
           /node_modules/,
-          /frontend/
+          /frontend/,
+          /dist/,
         ],
       }
     ]
