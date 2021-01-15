@@ -1,6 +1,6 @@
 import Navbar from 'components/navbar';
 import { FolderItem, SourceCodeItem, LoadingItem, ErrorItem } from 'components/navbar/item';
-import ProjectSidebar from 'components/projectsidebar';
+import ProjectSidebar from 'components/sidebar';
 import React from 'react';
 import { Link, match, Route, Switch } from 'react-router-dom';
 import { FailResponses, load } from 'utils/xhr';
@@ -19,13 +19,10 @@ interface ProjectSourceProps extends ProjectPageProps {
 export class ProjectSource extends React.Component<ProjectSourceProps> {
     render() {
         const filename = [...this.props.file];
-        console.log("Routing into ", filename);
         if (this.props.match) {
             filename.push(this.props.match.params.file);
         }
-        console.log("Really into ", filename);
         const baseurl = getBaseURL(this.props.project, "src", ...filename);
-        console.log("Baseurl:", baseurl);
         return <Switch>
             <Route path={baseurl + "/:file"} render={props => <ProjectSource match={props.match} user={this.props.user} project={this.props.project} file={filename} />} />
             <Route path={baseurl}>
@@ -273,9 +270,11 @@ class ViewFile extends React.Component<FileProps, FileState> {
             return <div>Loading...</div>;
         } else {
             return <div>
-                <code>
-                    {this.state.content}
-                </code>
+                <pre>
+                    <code>
+                        {this.state.content}
+                    </code>
+                </pre>
             </div>
         }
     }

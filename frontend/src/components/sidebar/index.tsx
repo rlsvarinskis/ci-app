@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import navbar from 'pages/project/navbar/navbar.less';
+import navbar from './sidebar.less';
 
 type LinkType = "main" | "src" | "branches" | "ci" | "sub";
 

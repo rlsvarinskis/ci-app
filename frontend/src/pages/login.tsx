@@ -3,13 +3,14 @@ import Navbar from "components/navbar";
 import Page from "components/page";
 import React from "react";
 import { LoginItem } from 'components/navbar/item';
+import { FailResponses, post, request } from "utils/xhr";
 
 interface LoginProps {
     onLogin: (user: User) => void;
 };
 
 export default class Login extends React.Component<LoginProps> {
-    state: {loggingIn: boolean, loggedIn: boolean, error: any} = {
+    state: {loggingIn: boolean, loggedIn: boolean, error: FailResponses | null} = {
         loggingIn: false,
         loggedIn: false,
         error: null,
@@ -25,39 +26,25 @@ export default class Login extends React.Component<LoginProps> {
             remember: (el.namedItem("remember") as any).checked,
         };
 
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/login");
-        xhr.responseType = "json";
-        xhr.onreadystatechange = (ev) => {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    var xhr2 = new XMLHttpRequest();
-                    xhr2.open("GET", "/api/login");
-                    xhr2.responseType = "json";
-                    xhr2.onreadystatechange = (ev) => {
-                        if (xhr2.readyState === XMLHttpRequest.DONE) {
-                            if (xhr2.status === 200) {
-                                this.props.onLogin(xhr2.response.data);
-                            } else {
-                                this.setState({
-                                    loggingIn: false,
-                                    error: xhr2.response,
-                                });
-                            }
-                        }
-                    };
-                    xhr2.send();
-                } else {
-                    this.setState({
-                        loggingIn: false,
-                        error: xhr.response,
-                    })
-                    //Error!
-                }
+        post("/api/login", res).then(result => {
+            if (result.type === "success") {
+                request<User>("GET", "/api/login").then(result2 => {
+                    if (result2.type === "success") {
+                        this.props.onLogin(result2.data);
+                    } else {
+                        this.setState({
+                            loggingIn: false,
+                            error: result2,
+                        });
+                    }
+                });
+            } else {
+                this.setState({
+                    loggingIn: false,
+                    error: result,
+                })
             }
-        }
-        xhr.setRequestHeader("Content-type", "application/json");
-        xhr.send(JSON.stringify(res));
+        });
         this.setState({
             loggingIn: true,
             error: null,
@@ -67,6 +54,17 @@ export default class Login extends React.Component<LoginProps> {
     }
 
     render() {
+        let errors = <></>;
+        if (this.state.error?.type === "failed") {
+            errors = <>
+                {this.state.error.message}
+            </>;
+        } else if (this.state.error?.type === "bad") {
+            errors = <>Server responded with malformed message</>
+        } else if (this.state.error?.type === "error") {
+            errors = <>Client side error occured: {this.state.error.error.toString()}</>
+        }
+
         return <>
             <Navbar user={{username: "", email: ""}}><LoginItem path={"/login"}>Login</LoginItem></Navbar>
             <Page>
@@ -76,7 +74,7 @@ export default class Login extends React.Component<LoginProps> {
                     <p>Password: <input name="password" type="password"></input></p>
                     <p>Remember me: <input name="remember" type="checkbox"></input></p>
                     <input type="submit" value="Login" disabled={this.state.loggingIn}></input>
-                    {this.state.error != null ? <>{this.state.error.message}</> : <></>}
+                    {errors}
                 </form>
             </Page>
         </>;

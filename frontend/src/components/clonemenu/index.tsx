@@ -106,9 +106,9 @@ export class CloneMenu extends React.Component<CloneMenuProps, CloneMenuState> {
                             <div className={styles.copytype}>SSH:</div>
                             <div className={styles.copycontainer}>
                                 <input ref={this.sshRef} value={this.props.sshClone} readOnly={true} onClick={inputClickHandler} {...sshAttrs} />
-                                <button onClick={() => copyClickHandler(this.sshRef, "sshButton")} {...sshAttrs}>
+                                <div onClick={() => copyClickHandler(this.sshRef, "sshButton")} {...sshAttrs}>
                                     <i className="far fa-copy"/>
-                                </button>
+                                </div>
                             </div>
                         </>
                     ) : <></>}

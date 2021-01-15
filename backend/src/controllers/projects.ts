@@ -10,6 +10,7 @@ import { parse } from "url";
 import { getUser, User } from "controllers/users";
 import * as mime from 'mime-types';
 import { sshPort } from "ports";
+import CI from "./ci";
 
 declare global {
     namespace Express {
@@ -166,6 +167,8 @@ const DELETE_ALL_PROJECT_TAGS_SQL = `DELETE FROM "project_tags" WHERE "project_i
 
 const GET_PROJECT_BRANCHES_SQL = `SELECT "name" AS "branch_name", "username", "branch_permission" + 2 AS "branch_permission" FROM "project_branches" LEFT JOIN "users" ON "users"."id"="owner" WHERE "project_id"=?1
 UNION SELECT "branch_name", "username", "writable" AS "branch_permission" FROM "project_branch_allowed" LEFT JOIN "users" ON "users"."id"="user_id" WHERE "project_id"=?1`;
+const GET_BRANCH_PUSH_SQL = `SELECT "push_id" FROM "project_branches" WHERE "project_id"=?1 AND "name"=?2`;
+const GET_TAG_PUSH_SQL = `SELECT "push_id" FROM "project_tags" WHERE "project_id"=?1 AND "name"=?2`;
 const INSERT_PROJECT_BRANCH_SQL = `INSERT INTO "project_branches" ("name", "project_id", "push_id", "owner", "branch_permission")
 SELECT ?1 AS "name", "projects"."id", ?3 AS "push_id", ?4 AS "owner", "default_branch_permissions" AS "branch_permission" FROM "projects" WHERE "projects"."id"=?2`;
 const CHANGE_PROJECT_BRANCH_PUSH_SQL = `UPDATE "project_branches" SET "push_id"=? WHERE "project_id"=? AND "name"=?`;
@@ -180,7 +183,7 @@ const UPDATE_BRANCH_CREATOR_SQL = `UPDATE "project_branches" SET "owner"=(SELECT
 const CAN_CHANGE_BRANCH_SQL = `SELECT "owner" AS "user_id" FROM "project_branches" WHERE "project_id"=? AND "name"=?`;
 const INSERT_PROJECT_BRANCH_MEMBER_SQL = `INSERT INTO "project_branch_allowed" ("project_id", "branch_name", "user_id", "writable") VALUES (?, ?, ?, ?)`;
 const UPDATE_BRANCH_MEMBER_SQL = `UPDATE "project_branch_allowed" SET "writable"=? WHERE "project_id"=? AND "branch_name"=? AND "user_id" IN (SELECT "id" FROM "users" WHERE "username"=?)`;
-const DELETE_BRANCH_MEMBER_SQL = `DELETE FROM "project_branch_allowed" WHERE "project_id"=? AND "branch_name"=? AND "user_id"= IN (SELECT "id" FROM "users" WHERE "username"=?)`;
+const DELETE_BRANCH_MEMBER_SQL = `DELETE FROM "project_branch_allowed" WHERE "project_id"=? AND "branch_name"=? AND "user_id" IN (SELECT "id" FROM "users" WHERE "username"=?)`;
 
 const permissions = union(["NONE", "READ", "WRITE"]);
 type permissions = typeof permissions['type'];
@@ -338,6 +341,7 @@ export const validRepositoryName = <TypeChecker<string>> function(data: any): da
 };
 
 export default async function Projects(app: Express, currentVersion: number): Promise<number> {
+    const lastVersion = currentVersion;
     while (currentVersion != CREATE_TABLES.length) {
         for (var i = 0; i < CREATE_TABLES[currentVersion].length; i++) {
             console.log("Running Projects v" + currentVersion + " script " + i);
@@ -351,6 +355,7 @@ export default async function Projects(app: Express, currentVersion: number): Pr
     await fs.promises.mkdir("resources", {
         recursive: true,
     });
+
 
     var projectsApp = express.Router();
 
@@ -401,14 +406,14 @@ export default async function Projects(app: Express, currentVersion: number): Pr
             await fs.promises.writeFile(path.join(repoLocation, "hooks", "pre-receive"),
 `#!/bin/sh
 
-exec node ../../dist/hook-pre-receive.js
+exec node ../../hooks/pre-receive.js "$@"
 `, {
     mode: 0o777
 });
             await fs.promises.writeFile(path.join(repoLocation, "hooks", "update"),
 `#!/bin/sh
 
-exec node ../../dist/hook-update.js "$@"
+exec node ../../hooks/update.js "$@"
 `, {
 mode: 0o777
 });
@@ -485,6 +490,14 @@ mode: 0o777
             next(errors.database(e));
         }
     });
+
+    const pushesRouter = express.Router();
+    const ciVersion = await CI(pushesRouter, lastVersion);
+    if (ciVersion !== currentVersion) {
+        console.error("Projects version and CI version are out of sync! " + currentVersion + " vs " + ciVersion);
+        throw "Error";
+    }
+    projectsApp.use("/:project", pushesRouter);
 
     projectsApp.get("/:project", async (req, res, next) => {
         if (req.project == null) {
@@ -1210,29 +1223,51 @@ mode: 0o777
         }
     });
 
-    projectsApp.get("/:project/res/:ref/:resource", async (req, res, next) => {
+    projectsApp.get("/:project/res/:reftype/:refname/*", async (req, res, next) => {
         if (req.project == null) {
             next(errors.not_found("Project"));
             return;
         }
-
-        //TODO: completely fix this
-        const refs = await fs.promises.readdir("resources/" + req.project.id);
-        const ref = refs.find(x => x === req.params.ref);
-        if (ref == null) {
-            next(errors.not_found("Reference"));
+        if (req.params.reftype !== "branch" && req.params.reftype !== "tag") {
+            next(errors.invalid_request());
             return;
         }
 
-        const resource = await fs.promises.readdir("resources/" + req.project.id + "/" + ref);
-        const resr = resource.find(x => x === req.params.resource);
-
-        if (resr == null) {
-            next(errors.not_found("Resource"));
+        let branchPush: number;
+        try {
+            const pushes = await all(req.params.reftype === "branch" ? GET_BRANCH_PUSH_SQL : GET_TAG_PUSH_SQL, req.project.id, req.params.refname);
+            if (pushes.length === 0) {
+                next(errors.not_found("Reference"));
+                return;
+            }
+            branchPush = pushes[0].push_id;
+        } catch (e) {
+            next(errors.database(e));
             return;
         }
 
-        res.sendFile(path.resolve("resources/" + req.project.id + "/" + ref + "/" + resr));
+        const target = path.normalize(req.params[0]);
+
+        const outputsDirectory = path.resolve("resources", req.project.id.toString(), branchPush.toString(), req.params.reftype === "branch" ? "branches" : "tags", req.params.refname, "final");
+        const resultingFile = path.join(outputsDirectory, target);
+
+        try {
+            const stats = await fs.promises.lstat(resultingFile);
+
+            if (stats.isDirectory()) {
+                const files = await fs.promises.readdir(resultingFile, {
+                    withFileTypes: true
+                });
+                res.setHeader("Content-type", "text/directory");
+                res.status(200);
+                res.send(files.map(x => x.isDirectory() ? "folder" : "file" + " " + x.name).join("\r\n"));
+            } else {
+                res.sendFile(resultingFile);
+            }
+        } catch (e) {
+            next(errors.not_found("File"));
+            return;
+        }
     });
 
     projectsApp.use("/:project/sub/", (req, res, next) => {

@@ -1,14 +1,14 @@
 import React from 'react';
 import { ProjectMember } from 'components/projectlist';
 import page from 'pages/project/page/page.less';
-import ProjectSidebar from 'components/projectsidebar';
+import ProjectSidebar from 'components/sidebar';
 import Navbar from 'components/navbar';
 import { DevelopersItem } from 'components/navbar/item';
 import { getAPIURL, getBaseURL, LoadingState, ProjectName, ProjectNavbarItems, ProjectPageProps } from '../common';
-import { FailResponses, post, put, request } from 'utils/xhr';
+import { del, FailResponses, post, put, request } from 'utils/xhr';
 import { DataProvider, ProjectInfo } from '../providers';
 import ErrorPage from 'pages/error';
-import { ProjectDevelopers } from './developers';
+import { UserItem } from '../../../components/useritem/useritem';
 
 export class ProjectDeveloperPage extends React.Component<ProjectPageProps> {
     render() {
@@ -105,14 +105,12 @@ class ProjectDeveloperList extends DataProvider<ProjectDeveloperData> {
     }
 }
 
-interface OwnerProps {
+class Owner extends React.Component<{
     project: ProjectName;
     owner: string;
     isOwner: boolean;
     onChange: (oldOwner: string, newOwner: string) => void;
-};
-
-export class Owner extends React.Component<OwnerProps, LoadingState> {
+}, LoadingState> {
     state: LoadingState = {};
 
     transferOwnership(evt: React.FormEvent<HTMLFormElement>) {
@@ -149,9 +147,153 @@ export class Owner extends React.Component<OwnerProps, LoadingState> {
     render() {
         return <div>
             <h2>Owner</h2>
-            <div><img src={"/api/users/" + this.props.owner + "/avatar"} /><h4>{this.props.owner}</h4></div>
+            <UserItem username={this.props.owner} />
             {this.props.isOwner && <form onSubmit={evt => this.transferOwnership(evt)}><input disabled={this.state.loading === true} name="username" placeholder="New owner" /><input disabled={this.state.loading === true} type="submit" value="Transfer ownership" /></form> }
             {this.state.loading !== true && this.state.loading != null ? JSON.stringify(this.state.loading) : ""}
         </div>;
+    }
+}
+
+class ProjectDevelopers extends React.Component<{
+    project: ProjectName;
+    isOwner: boolean;
+    members: ProjectMember[];
+    onChange: (members: ProjectMember[]) => void;
+}, LoadingState> {
+    state: LoadingState = {};
+    addUser(evt: React.FormEvent<HTMLFormElement>) {
+        evt.preventDefault();
+
+        const el = evt.currentTarget.elements;
+
+        const res = {
+            username: (el.namedItem("username") as HTMLInputElement).value,
+            make_branches: (el.namedItem("make_branches") as HTMLInputElement).checked,
+            make_subprojects: (el.namedItem("make_subprojects") as HTMLInputElement).checked,
+            make_tags: (el.namedItem("make_tags") as HTMLInputElement).checked,
+            delete_tags: (el.namedItem("delete_tags") as HTMLInputElement).checked,
+        };
+
+        post(getAPIURL(this.props.project, "members"), res).then(result => {
+            if (result.type === "success") {
+                this.setState({
+                    loading: undefined,
+                });
+                this.props.onChange([...this.props.members, res]);
+            } else {
+                this.setState({
+                    loading: result,
+                });
+            }
+        });
+        this.setState({
+            loading: true,
+        });
+        return false;
+    }
+
+    render() {
+        return <div>
+            <h2>Developers</h2>
+            {
+                (!this.props.isOwner && this.props.members.length === 0) ? <div>No other developers</div> : <div>
+                    {this.props.members.map(x => <ProjectDeveloper key={x.username} project={this.props.project} member={x} isOwner={this.props.isOwner} onChange={m => {
+                        this.props.onChange(this.props.members.map(x => {
+                            if (x.username === m.username) {
+                                return m;
+                            }
+                            return x;
+                        }));
+                    }} onDelete={m => this.props.onChange(this.props.members.filter(x => x.username !== m.username))} />)}
+                    {this.props.isOwner && <form onSubmit={evt => this.addUser(evt)}>
+                        <input name="username" placeholder="Username"></input>
+                        {" "}Make branches: <input name="make_branches" type="checkbox"></input>
+                        {" "}Make subprojects: <input name="make_subprojects" type="checkbox"></input>
+                        {" "}Make tags: <input name="make_tags" type="checkbox"></input>
+                        {" "}Delete tags: <input name="delete_tags" type="checkbox"></input>
+                        <input type="submit" value="Add user"></input>
+                    </form>}
+                </div>
+            }
+            {this.state.loading !== true && this.state.loading != null ? JSON.stringify(this.state.loading) : ""}
+        </div>;
+    }
+}
+
+class ProjectDeveloper extends React.Component<{
+    project: ProjectName;
+    isOwner: boolean;
+    member: ProjectMember;
+    onChange: (dev: ProjectMember) => void;
+    onDelete: (dev: ProjectMember) => void;
+}, LoadingState> {
+    state: LoadingState = {};
+
+    setUser(evt: React.ChangeEvent<HTMLInputElement>, key: "make_branches" | "make_subprojects" | "make_tags" | "delete_tags") {
+        evt.preventDefault();
+        const m = this.props.member;
+        const res = {
+            make_branches: m.make_branches,
+            make_subprojects: m.make_subprojects,
+            make_tags: m.make_tags,
+            delete_tags: m.delete_tags,
+        };
+        res[key] = evt.currentTarget.checked;
+        put(getAPIURL(this.props.project, "members", m.username), res).then(result => {
+            if (result.type === "success") {
+                this.setState({
+                    loading: undefined
+                });
+                this.props.onChange({
+                    username: m.username,
+                    ...res
+                });
+            } else {
+                this.setState({
+                    loading: result
+                });
+            }
+        });
+        this.setState({
+            loading: true
+        });
+        return false;
+    }
+
+    delUser() {
+        const m = this.props.member;
+        del(getAPIURL(this.props.project, "members", m.username)).then(result => {
+            if (result.type === "success") {
+                this.setState({
+                    loading: undefined
+                });
+                this.props.onDelete(m);
+            } else {
+                this.setState({
+                    loading: result
+                });
+            }
+        });
+        this.setState({
+            loading: true
+        });
+    }
+    
+    render() {
+        const m = this.props.member;
+        const disable = this.state.loading === true || !this.props.isOwner;
+        return <>
+            <UserItem key={m.username} username={m.username} />
+            Make branches: <input onChange={evt => this.setUser(evt, "make_branches")} checked={m.make_branches} disabled={disable} type="checkbox" />
+            Make subprojects: <input onChange={evt => this.setUser(evt, "make_subprojects")} checked={m.make_subprojects} disabled={disable} type="checkbox" />
+            Make tags: <input onChange={evt => this.setUser(evt, "make_tags")} checked={m.make_tags} disabled={disable} type="checkbox" />
+            Delete tags: <input onChange={evt => this.setUser(evt, "delete_tags")} checked={m.delete_tags} disabled={disable} type="checkbox" />
+            {this.props.isOwner ? (
+                <>
+                    <button onClick={() => this.delUser()} disabled={disable}>Remove</button>
+                    {this.state.loading != null && this.state.loading !== true ? <>Errors occured: {JSON.stringify(this.state.loading)}</> : <></>}
+                </>
+             ) : <></>}
+        </>;
     }
 }

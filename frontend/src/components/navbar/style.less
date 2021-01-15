@@ -18,7 +18,7 @@
             white-space: nowrap;
             vertical-align: middle;
     
-            &>a {
+            & a {
                 display: inline-block;
                 line-height: 3rem;
                 text-decoration: none;
@@ -68,6 +68,14 @@
     
         &>.center {
             width: 100%;
+
+            &>.centercontainer {
+                display: table;
+                table-layout: fixed;
+                width: 100%;
+
+                overflow: hidden;
+            }
         }
     }
 }

@@ -6,8 +6,8 @@ module.exports = {
   mode: 'production',
   entry: {
     index: './src/main.ts',
-    "hook-pre-receive": './src/hooks/pre-receive.ts',
-    "hook-update": './src/hooks/update.ts',
+    "hooks/pre-receive": './src/hooks/pre-receive.ts',
+    "hooks/update": './src/hooks/update.ts',
   },
   plugins: [],
 

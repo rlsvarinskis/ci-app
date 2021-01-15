@@ -3,18 +3,19 @@ import ReactMarkdown from 'react-markdown';
 import gfm from 'remark-gfm';
 import { ProjectMember } from 'components/projectlist';
 import page from 'pages/project/page/page.less';
-import infobar from 'pages/project/infobar/infobar.less';
-import ProjectSidebar from 'components/projectsidebar';
-import { FileItem, UserItem } from './useritem/useritem';
+import infobar from './infobar/infobar.less';
+import ProjectSidebar from 'components/sidebar';
+import { FileItem, UserItem } from '../../../components/useritem/useritem';
 import ToggleButton from 'components/togglebutton';
 import selects from 'components/select/index.less';
 import { CloneMenu } from 'components/clonemenu';
 import Navbar from 'components/navbar';
-import { getAPIURL, getBaseURL, ProjectName, ProjectNavbarItems, ProjectPageProps } from './common';
-import { FailResponses, load, put, request, SuccessfulResponse } from 'utils/xhr';
-import { ProjectInfo, DataProvider, ReadmeProvider } from './providers';
+import { getAPIURL, getBaseURL, ProjectName, ProjectNavbarItems, ProjectPageProps } from '../common';
+import { FailResponses, FileResponse, load, put, request, SuccessfulResponse, Response } from 'utils/xhr';
+import { ProjectInfo, DataProvider, ReadmeProvider } from '../providers';
 import ErrorPage from 'pages/error';
 import { Link } from 'react-router-dom';
+import { BranchPermissions, BranchPermissionsText } from 'components/projectmaker';
 
 export default class ProjectMainPage extends React.Component<ProjectPageProps> {
     render() {
@@ -144,13 +145,6 @@ class ProjectDescription extends React.Component<ProjectDescriptionPageProps, Pr
         const devsUrl = getBaseURL(this.props.project, "devs");
         return <>
             <div className={page.page}>
-                {/*
-                    isOwner ? <div>
-                        <p>
-                            Default branch permission: <select className={selects.select} onChange={evt => this.setDefaultBP(evt)} disabled={this.state.projectInfo === "loading" || this.state.projectInfo == null || this.state.loadingDefaultPerm !== false} value={this.state.projectInfo != "loading" && this.state.projectInfo != null ? this.state.projectInfo.default_branch_permissions : ""}>{BranchPermissions.map(x => <option key={x} value={x}>{BranchPermissionsText[x]}</option>)}</select>
-                        </p>
-                    </div> : <></>*/
-                }
                 <div className="readme">
                     <ProjectReadme project={this.props.project} user={this.props.user}></ProjectReadme>
                 </div>
@@ -164,13 +158,10 @@ class ProjectDescription extends React.Component<ProjectDescriptionPageProps, Pr
                 {
                     isOwner ? <div>
                         <div className={infobar.setting}>Private <div className={infobar.settingvalue}><ToggleButton onToggle={newVal => this.setPrivate(newVal)} disabled={this.state.loadingPrivate === true} checked={this.props.info.private} /></div></div>
-                        {/*<div className={infobar.setting}>Branch permissions: <div className={infobar.settingvalue}><ToggleButton onToggle={newVal => this.setPrivate(newVal)} disabled={this.state.projectInfo === "loading" || this.state.projectInfo == null || this.state.loadingPrivate !== false} checked={this.state.projectInfo != "loading" ? this.state.projectInfo != null ? this.state.projectInfo.private : "intermediate" : "intermediate"}></ToggleButton></div></div>*/}
+                        <div className={infobar.setting}>Branches <div className={infobar.settingvalue}><select className={selects.select} onChange={evt => this.setDefaultBP(evt)} disabled={this.state.loadingDefaultPerm === true} value={this.props.info.default_branch_permissions}>{BranchPermissions.map(x => <option key={x} value={x}>{BranchPermissionsText[x]}</option>)}</select></div></div>
                     </div> : <></>
                 }
-                <div>
-                    <div className={infobar.sectiontitle}>Release</div>
-                    <FileItem filename="Minecraft.exe" icon={{type: "url", url: "https://www.freeiconspng.com/thumbs/minecraft-png-icon/minecraft-icon-0.png"}}></FileItem>
-                </div>
+                <ProjectFiles project={this.props.project} />
                 <div>
                     {isOwner && <Link to={devsUrl} className={infobar.link + " " + infobar.sectionedit}>Transfer ownership</Link>}
                     <div className={infobar.sectiontitle}>Owner</div>
@@ -189,6 +180,107 @@ class ProjectDescription extends React.Component<ProjectDescriptionPageProps, Pr
         </>
     }
 };
+
+interface ProjectFilesProps {
+    project: ProjectName;
+};
+
+interface ProjectFilesState {
+    folder: string[];
+    data?: Response<{
+        folder: boolean;
+        name: string;
+    }[]>;
+};
+
+class ProjectFiles extends React.Component<ProjectFilesProps, ProjectFilesState> {
+    state: ProjectFilesState = {
+        folder: []
+    };
+
+    update() {
+        load("GET", getAPIURL(this.props.project, "res", "branch", "master", ...this.state.folder) + (this.state.folder.length === 0 ? "/" : "")).then(result => {
+            if (result.type === "success") {
+                result.data.data.text().then(text => {
+                    this.setState({
+                        data: {
+                            type: "success",
+                            code: 200,
+                            data: text.split("\r\n").map(line => {
+                                const sp = line.split(" ", 2);
+                                return {
+                                    folder: sp[0] === "folder",
+                                    name: sp[1]
+                                };
+                            })
+                        }
+                    });
+                }, e => {
+                    this.setState({
+                        data: {
+                            type: "error",
+                            error: e
+                        }
+                    })
+                });
+            } else {
+                this.setState({
+                    data: result
+                });
+            }
+        });
+        this.setState({data: undefined});
+    }
+
+    componentDidMount() {
+        this.update();
+    }
+
+    renderLoading() {
+        return <div>
+            <div className={infobar.sectiontitle}>master</div>
+            <span>Loading...</span>
+        </div>
+    }
+
+    renderError() {
+        return <div>
+            <div className={infobar.sectiontitle}>master</div>
+            <span>Failed to load: {JSON.stringify(this.state.data)}</span>
+        </div>;
+    }
+
+    render() {
+        const d = this.state.data;
+        if (d == null) {
+            return this.renderLoading();
+        } else if (d.type === "success") {
+            return <div>
+                <div className={infobar.sectiontitle}>master</div>
+                {
+                    this.state.folder.length > 0 ? 
+                    <FileItem filename={".."} target={() => {
+                        this.setState(state => {
+                            folder: state.folder.slice(0, state.folder.length - 1)
+                        });
+                    }} icon={{type: "url", url: "https://www.ispsd.com/wp-content/uploads/2013/02/wpid-folder-icon-512x512.png"}} />: <></>
+                }
+                {
+                    ...d.data.map(file => {
+                        const icon = file.folder ? "https://www.ispsd.com/wp-content/uploads/2013/02/wpid-folder-icon-512x512.png" : file.name.endsWith(".zip") ? "https://www.iconhot.com/icon/png/sleek-xp-software/256/zip.png" : "https://i.pinimg.com/originals/7f/d2/e4/7fd2e46b2da9819e667fb75caf475cf7.png";
+                        return <FileItem filename={file.name} target={file.folder ? () => {
+                            this.setState(state => {
+                                folder: [...state.folder, file.name]
+                            });
+                        } : getAPIURL(this.props.project, "res", "branch", "master", ...this.state.folder, file.name)} icon={{type: "url", url: icon}}></FileItem>
+                    })
+                }
+            </div>;
+        } else {
+            return this.renderError();
+        }
+    }
+}
 
 interface ProjectReadmeProps {
     readme: string

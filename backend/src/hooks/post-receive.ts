@@ -35,7 +35,7 @@ export function exec(command: string, parameters: string[]) {
 //No stream folder - branch isn't being run yet
 //Streams folder - branch is being run
 //  Script folder is empty: script is not running
-//  Script folder has out and err: script is running
+//  Script folder has out: script is running
 //  Script folder has file res: script is done
 //Final folder - branch has finished running
 
@@ -135,20 +135,44 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
         for (let i = 0; i < dirs.length; i++) {
             const ex = child_process.spawn("lxc", ["exec", containerName, "--cwd", "/root/project", "--", "/root/project/.ci/scripts/" + dirs[i], refName]);
             const OUT = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "out"));
-            const ERR = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "err"));
+            function lengthAsBytes(length: number) {
+                const int = length & 0xFFFFFFFF;
+                return Uint8Array.from([(length >> 24) & 0xFF, (length >> 16) & 0xFF, (length >> 8) & 0xFF, length & 0xFF]);
+            }
             //Stream the outputs of the process into the out and err files
-            ex.stderr.pipe(ERR);
-            ex.stdout.pipe(OUT);
+            ex.stderr.on("data", (data: Buffer) => {
+                //Writes should be atomic, so the output file will end up being an interleaved log of <STREAM ID> <CHUNK LENGTH> <CHUNK>
+                if (OUT.write(Buffer.concat([Uint8Array.from([0x01]), lengthAsBytes(data.length), data])) === false) {
+                    ex.stdout.pause();
+                    ex.stderr.pause();
+                }
+            });
+            ex.stdout.on("data", (data: Buffer) => {
+                //Writes should be atomic, so the output file will end up being an interleaved log of <STREAM ID> <CHUNK LENGTH> <CHUNK>
+                if (OUT.write(Buffer.concat([Uint8Array.from([0x00]), lengthAsBytes(data.length), data])) === false) {
+                    ex.stdout.pause();
+                    ex.stderr.pause();
+                }
+            });
+            ex.stderr.resume();
+            ex.stdout.resume();
+
+            OUT.on("drain", () => {
+                ex.stdout.resume();
+                ex.stderr.resume();
+            })
             //ex.stdin.write([oldHex, newHex, refName].join(" ") + "\n");
             ex.stdin.end();
             await new Promise<number>((resolve, reject) => {
                 ex.addListener("error", function(error) {
+                    OUT.close();
                     //Internal failure, set the script's status to "err"
                     console.log("Error: ", error);
                     fs.writeFile(path.join(STREAM_FOLDER, dirs[i], "res"), "err");
                     resolve(-1);
                 });
                 ex.addListener("close", function(code, signal) {
+                    OUT.close();
                     //Script succeeded, write the exit code to file
                     fs.writeFile(path.join(STREAM_FOLDER, dirs[i], "res"), code.toString());
                     resolve(code);
@@ -162,6 +186,11 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
         } catch (e) {
             console.warn(e);
             //Script probably deleted the output folder. No problem
+            try {
+                await fs.mkdir(FINAL_FOLDER);
+            } catch (e) {
+                console.warn(e);
+            }
         }
     } catch (e) {
         console.error(e);

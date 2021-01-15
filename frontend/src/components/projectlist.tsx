@@ -59,16 +59,14 @@ export default class ProjectList extends React.Component<ProjectListProp, Projec
                         const me = resp.find(x => x.username === this.props.user.username);
                         if (me == null || !me.make_subprojects) {
                         } else {
-                            this.setState(state => ({
-                                ...state,
+                            this.setState({
                                 canMake: true,
-                            }));
+                            });
                         }
                     } else {
-                        this.setState(state => ({
-                            ...state,
+                        this.setState({
                             canMakeError: xhr.response,
-                        }))
+                        });
                     }
                 }
             }
@@ -85,16 +83,14 @@ export default class ProjectList extends React.Component<ProjectListProp, Projec
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
                     if (xhr.response.data.owner === this.props.user.username) {
-                        this.setState(state => ({
-                            ...state,
+                        this.setState({
                             canMake: true,
-                        }));
+                        });
                     }
                 } else {
-                    this.setState(state => ({
-                        ...state,
+                    this.setState({
                         canMakeError: xhr.response,
-                    }))
+                    });
                 }
             }
         }
@@ -120,19 +116,17 @@ export default class ProjectList extends React.Component<ProjectListProp, Projec
                         projects: [...state.projects, ...resp],
                     }));
                 } else {
-                    this.setState(state => ({
-                        ...state,
+                    this.setState({
                         loading: false,
                         errors: xhr.response,
-                    }))
+                    });
                 }
             }
         }
         if (!this.state.loading) {
-            this.setState(state => ({
-                ...state,
+            this.setState({
                 loading: true,
-            }));
+            });
         }
         xhr.send();
     }
@@ -141,8 +135,8 @@ export default class ProjectList extends React.Component<ProjectListProp, Projec
         const rootUrl = "/p/" + this.props.parent.map(x => x + "/_/").join("");
 
         return <Page>
-            {this.state.isMaking ? <ProjectMaker parent={this.props.parent} onClose={() => this.setState(state => ({...state, isMaking: false}))}></ProjectMaker> : <></>}
-            <button onClick={() => this.setState(state => ({...state, isMaking: true}))} disabled={!this.state.canMake}>Create a project</button>
+            {this.state.isMaking ? <ProjectMaker parent={this.props.parent} onClose={() => this.setState({isMaking: false})}></ProjectMaker> : <></>}
+            <button onClick={() => this.setState({isMaking: true})} disabled={!this.state.canMake}>Create a project</button>
             {...this.state.projects.map(project => {
                 return <Link key={project.name} to={rootUrl + project.name}>
                     <div className="project">

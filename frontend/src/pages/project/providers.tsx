@@ -22,7 +22,7 @@ export interface ProjectInfo {
     sshPort: number;
 };
 
-function equalArrays(a: string[] | undefined, b: string[] | undefined) {
+export function equalArrays(a: string[] | undefined, b: string[] | undefined) {
     if (a == null) {
         if (b == null) {
             return true;

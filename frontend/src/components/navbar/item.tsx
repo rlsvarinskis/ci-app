@@ -39,6 +39,12 @@ export class FolderItem extends React.Component<CustomNavbarProps> {
     }
 }
 
+export class SuccessItem extends React.Component<CustomNavbarProps> {
+    render() {
+        return <Link to={this.props.path}><i className="far fa-check-circle" />{this.props.children}</Link>
+    }
+}
+
 export class LoadingItem extends React.Component<CustomNavbarProps> {
     render() {
         return <Link to={this.props.path}><i className="fas fa-spinner" />{this.props.children}</Link>
@@ -72,5 +78,11 @@ export class RegisterItem extends React.Component<CustomNavbarProps> {
 export class DevelopersItem extends React.Component<CustomNavbarProps> {
     render() {
         return <Link to={this.props.path}><i className="fas fa-users" />{this.props.children}</Link>
+    }
+}
+
+export class CIItem extends React.Component<CustomNavbarProps> {
+    render() {
+        return <Link to={this.props.path}><i className="fas fa-cogs" />{this.props.children}</Link>
     }
 }

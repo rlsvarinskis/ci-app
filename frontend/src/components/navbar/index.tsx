@@ -32,7 +32,9 @@ export default class Navbar extends React.Component<NavbarProps> {
                 <Link to="/">CI Project</Link>
             </div>
             <div className={styles.center}>
-                {this.props.children}
+                <div className={styles.centercontainer}>
+                    {this.props.children}
+                </div>
             </div>
             {this.props.user.username !== "" ? (
                 <div>

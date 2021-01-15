@@ -31,8 +31,12 @@ const secret = crypto.randomBytes(32);
 // * Create and view tags
 
 async function start() {
+    if (httpPort as number != 0) {
+        server1 = http.createServer(app).listen(httpPort, httpHost);
+        expressWs(app, server1);
+        console.log("Launched HTTP");
+    }
     var api = express();
-    var ws = expressWs(api);
     api.use(cookieSession({
         name: "sessionid",
         secret: secret.toString("hex"),
@@ -89,21 +93,16 @@ async function start() {
     });
 
     app.use("/api", api);
-    app.use("/index.js", express.static("../frontend/dist/index.js"));
-    app.use("/index.js.map", express.static("../frontend/dist/index.js.map"));
-    app.use("/main.css", express.static("../frontend/dist/main.css"));
-    app.use("/styles.css", express.static("../frontend/dist/styles.css"));
-    app.use("/styles.css.map", express.static("../frontend/dist/styles.css.map"));
-    app.use("/css", express.static("../frontend/dist/css"));
-    app.use("/webfonts", express.static("../frontend/dist/webfonts"));
+    app.use("/index.js", express.static("frontend/index.js"));
+    app.use("/index.js.map", express.static("frontend/index.js.map"));
+    app.use("/main.css", express.static("frontend/main.css"));
+    app.use("/styles.css", express.static("frontend/styles.css"));
+    app.use("/styles.css.map", express.static("frontend/styles.css.map"));
+    app.use("/css", express.static("frontend/css"));
+    app.use("/webfonts", express.static("frontend/webfonts"));
     app.use("/", (req, res, next) => {
-        res.sendFile(path.resolve("../frontend/dist/main.html"))
+        res.sendFile(path.resolve("frontend/main.html"))
     });
-
-    if (httpPort as number != 0) {
-        server1 = http.createServer(app).listen(httpPort, httpHost);
-        console.log("Launched HTTP");
-    }
     if (httpsPort as number != 0) {
         //server2 = https.createServer({
         //    //

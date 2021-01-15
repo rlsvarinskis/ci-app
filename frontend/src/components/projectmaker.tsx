@@ -1,5 +1,7 @@
 import { User } from 'App';
+import { getBaseURL } from 'pages/project/common';
 import React from 'react';
+import { Redirect } from 'react-router-dom';
 import Modal from './modal';
 
 interface ProjectMakerProps {
@@ -49,7 +51,7 @@ export default class ProjectMaker extends React.Component<ProjectMakerProps, Pro
                     this.setState(state => ({
                         ...state,
                         loading: false,
-                        redirect: "/p/" + this.props.parent.join("/_/") + "/" + data.name,
+                        redirect: getBaseURL({parent: this.props.parent, project: data.name}),
                         error: null,
                     }));
                 } else {
@@ -73,6 +75,9 @@ export default class ProjectMaker extends React.Component<ProjectMakerProps, Pro
     }
 
     render() {
+        if (this.state.redirect != null) {
+            return <Redirect to={this.state.redirect}></Redirect>
+        }
         return <Modal onClose={this.props.onClose}>
             <h1>Making a project</h1>
             <form onSubmit={evt => this.submitForm(evt)}>
@@ -81,7 +86,7 @@ export default class ProjectMaker extends React.Component<ProjectMakerProps, Pro
                 <p>Description:</p>
                 <p><textarea name="description" disabled={this.state.loading}></textarea></p>
                 <p>Private project: <input type="checkbox" name="private" disabled={this.state.loading}></input></p>
-                <p>By default, branches are: <select name="default_branch_permissions" disabled={this.state.loading}>{BranchPermissions.map(x => <option value={x}>{BranchPermissionsText[x]}</option>)}</select></p>
+                <p>By default, branches are: <select name="default_branch_permissions" disabled={this.state.loading}>{BranchPermissions.map(x => <option key={x} value={x}>{BranchPermissionsText[x]}</option>)}</select></p>
                 <p><input type="submit" value="Create project" disabled={this.state.loading}></input></p>
             </form>
             <button onClick={() => this.props.onClose()}>Cancel</button>

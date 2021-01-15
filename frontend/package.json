@@ -4,7 +4,7 @@
   "description": "CI frontend",
   "main": "dist/index.js",
   "scripts": {
-    "build": "cp -r main.html main.css css webfonts dist && webpack"
+    "build": "webpack && cp -r res/* dist"
   },
   "keywords": [
     "ci",
@@ -22,7 +22,8 @@
     "react-dom": "^17.0.1",
     "react-markdown": "^5.0.3",
     "react-router-dom": "^5.2.0",
-    "remark-gfm": "^1.0.0"
+    "remark-gfm": "^1.0.0",
+    "xterm-for-react": "^1.0.4"
   },
   "devDependencies": {
     "@teamsupercell/typings-for-css-modules-loader": "^2.4.0",

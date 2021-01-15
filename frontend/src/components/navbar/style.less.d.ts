@@ -1,6 +1,7 @@
 declare namespace StyleLessNamespace {
   export interface IStyleLess {
     center: string;
+    centercontainer: string;
     logout: string;
     navbar: string;
     profileimage: string;

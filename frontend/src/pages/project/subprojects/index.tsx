@@ -1,7 +1,7 @@
 import React from 'react';
 import { getAPIURL, getBaseURL, ProjectNavbarItems, ProjectPageProps } from '../common';
 import Navbar from 'components/navbar';
-import ProjectSidebar from 'components/projectsidebar';
+import ProjectSidebar from 'components/sidebar';
 import page from 'pages/project/page/page.less';
 import { BranchesItem, FolderItem } from 'components/navbar/item';
 import ProjectList from 'components/projectlist';
