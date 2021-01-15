@@ -12,7 +12,7 @@ npm run build
 cd dist
 cp -r ../../frontend/dist/ frontend
 mkdir profiles
-cp ../profiles/default.jpeg profiles
+cp ../res/default.jpeg profiles
 
 cd ../..
 mv backend/dist ci-app
