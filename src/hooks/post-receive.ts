@@ -130,7 +130,11 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
         });
 
         for (let i = 0; i < dirs.length; i++) {
-            const ex = child_process.spawn("lxc", ["exec", containerName, "-t", "--cwd", "/root/project", "--", "/root/project/.ci/scripts/" + dirs[i], refName]);
+            const ex = child_process.spawn("lxc", ["exec", containerName, "-t", "--cwd", "/root/project", "--", "/root/project/.ci/scripts/" + dirs[i], refName], {
+                env: {
+                    TERM: "xterm-256color",
+                }
+            });
             const OUT = createWriteStream(path.join(STREAM_FOLDER, dirs[i], "out"), "binary");
             function lengthAsBytes(length: number) {
                 const int = length & 0xFFFFFFFF;
@@ -159,7 +163,7 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
                 ex.stderr.resume();
             })
             //ex.stdin.write([oldHex, newHex, refName].join(" ") + "\n");
-            ex.stdin.end();
+            //ex.stdin.end();
             await new Promise<number>((resolve, reject) => {
                 ex.addListener("error", function(error) {
                     OUT.close();
