@@ -124,6 +124,7 @@ async function runScripts(name: string, refName: string, refFolder: string, proj
         //Upload project and output folder to the container
         await exec("lxc", ["file", "push", "-r", "-p", PROJECT_FOLDER, containerName + "/root"]);
         await exec("lxc", ["file", "push", "-r", "-p", OUTPUT_FOLDER, containerName + "/root"]);
+        await exec("lxc", ["exec", containerName, "--", "bash", "-c", "until ping -c1 ubuntu.com >/dev/null 2>&1; do sleep 0.5s; done"]);
         //Output folder no longer needed
         await fs.rm(OUTPUT_FOLDER, {
             recursive: true
