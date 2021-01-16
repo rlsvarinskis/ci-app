@@ -13,7 +13,7 @@ module.exports = {
   },
   plugins: [new CopyPlugin({
     patterns: [
-      {from: "res", to: "dist"}
+      {from: "res", to: path.resolve(__dirname, "dist")}
     ]
   })],
 
