@@ -5,6 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "webpack",
+    "bundle": "webpack --env BUNDLE=yes",
     "watch": "webpack --watch",
     "start": "cd dist && node index.js --http-port=8000 --ssh-port=2222"
   },

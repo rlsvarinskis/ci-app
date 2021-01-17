@@ -11,7 +11,7 @@ import cookieSession from 'cookie-session';
 import crypto from 'crypto';
 import path from 'path';
 import ssh2 from 'ssh2';
-import { httpHost, httpPort, httpsPort, sshHost, sshPort } from 'ports';
+import { httpHost, httpPort, sshHost, sshPort } from 'ports';
 import { errors } from 'errors';
 
 const app = express();
@@ -19,13 +19,8 @@ var ssh: ssh2.Server | null;
 var server1: http.Server | null = null;
 var server2: https.Server | null = null;
 
+//Generate a secret key to be used for encrypting and decrypting cookies
 const secret = crypto.randomBytes(32);
-
-//Still TODO:
-// * Delete a project
-// * Search users by name
-// * Search projects by name
-// * Create and view tags
 
 async function start() {
     if (httpPort as number != 0) {
@@ -33,6 +28,8 @@ async function start() {
         expressWs(app, server1);
         console.log("Launched HTTP");
     }
+
+    //Set up express-js
     var api = express();
     api.use(cookieSession({
         name: "sessionid",
@@ -49,18 +46,22 @@ async function start() {
             req.sessionOptions.maxAge = 24 * 60 * 60 * 1000 * 30;
         }
     });
+    //All responses will be in application/json unless otherwise stated
     api.use(function(req, res, next) {
         res.setHeader("Content-type", "application/json");
         next();
     });
 
+    //The following code prepares some of the modules used by the system. The CI module will be prepared by the Projects module.
     const modules = {
         "users": Users,
         "projects": Projects,
     };
-
     await prepareDb(api, modules);
 
+    //After all routes have been tried, check if some have responded.
+    //The response is stored in "err", because usually express-js handles errors by passing them to next().
+    //This code passes successful responses to next() too.
     api.use(<ErrorRequestHandler> function(err, req, res, next) {
         try {
             if (err != null) {
@@ -86,6 +87,7 @@ async function start() {
         }));
     });
 
+    //Store the entire backend under /api, but route all other valid files to the files stored in ./frontend.
     app.use("/api", api);
     app.use("/index.js", express.static("frontend/index.js"));
     app.use("/index.js.map", express.static("frontend/index.js.map"));
@@ -97,11 +99,6 @@ async function start() {
     app.use("/", (req, res, next) => {
         res.sendFile(path.resolve("frontend/main.html"))
     });
-    if (httpsPort as number != 0) {
-        //server2 = https.createServer({
-        //    //
-        //}, app).listen(httpsPort, httpsHost);
-    }
 
     if (sshPort as number != 0) {
         ssh = await sshServer(sshHost, sshPort);
@@ -130,6 +127,8 @@ start().then(() => {
         console.log("Stopped");
         removeSignals();
     };
+
+    //Listen for SIGINT or SIGTERM and close the program when they are received.
     const sigInt = () => {
         console.log('Received SIGINT, stopping server');
         close();

@@ -1,5 +1,4 @@
 import { Express, json, NextFunction, Request, Response } from 'express';
-import argon2 from 'argon2';
 import { all, run } from 'database';
 import { alphanumeric, base64, email, lengthStr, randomBytes } from 'utils';
 import { errors } from 'errors';
@@ -9,64 +8,19 @@ import multer from 'multer';
 import path from 'path';
 import im from 'jimp';
 import { raw } from 'body-parser';
-
-const ADMIN_SALT = randomBytes(16);
+import { CREATE_USER_TABLES, GET_USER_PARAMETERS, hash, User, createUser, selectUser, getUser, ACTIVATE_USER, UPDATE_PASSWORD_SQL } from 'models/user';
 
 const CREATE_TABLES = [
-    [
-`CREATE TABLE "users" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "username" VARCHAR(255) UNIQUE NOT NULL,
-    "email" VARCHAR(255) UNIQUE NOT NULL,
-    "password_argon2" BINARY(64) NOT NULL,
-    "salt" BINARY(16) NOT NULL,
-    "active" BINARY(16) NULL
-)`,
-`CREATE TABLE "user_recovery" (
-    "recovery" BINARY(16) NOT NULL,
-    "user_id" INTEGER NOT NULL,
-    "time" BIGINT NOT NULL,
-    PRIMARY KEY ("recovery"),
-    FOREIGN KEY ("user_id") REFERENCES "users"("id")
-)`,
-`CREATE TABLE "user_keys" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "user_id" INTEGER NOT NULL,
-    "algorithm" VARCHAR(255) NOT NULL,
-    "key" BINARY(2048) NOT NULL,
-    "comment" VARCHAR(256) NOT NULL,
-    UNIQUE("algorithm", "key"),
-    FOREIGN KEY ("user_id") REFERENCES "users"("id")
-)`,
-`INSERT INTO "users" ("id", "username", "email", "password_argon2", "salt", "active") VALUES (0, "admin", "admin", ?, ?, NULL)`
-],
+    CREATE_USER_TABLES[0]
 ];
+
 const GET_PARAMETERS = [
-    [() => Promise.resolve([]), () => Promise.resolve([]), () => Promise.resolve([]), async function() {
-        const salt = await randomBytes(16);
-        const pw = await hash(Buffer.from("admin"), salt);
-        return [pw, salt];
-    }]
+    GET_USER_PARAMETERS[0]
 ];
-
-export interface User {
-    id: number;
-    username: string;
-    email: string;
-    password_argon2: Buffer;
-    salt: Buffer;
-    active: Buffer | null;
-}
-
-const CREATE_USER_SQL = `INSERT INTO "users" ("username", "email", "password_argon2", "salt", "active") VALUES (?, ?, ?, ?, ?)`;
-const SELECT_USER_SQL = `SELECT "id", "username", "email", "password_argon2", "salt", "active" FROM "users" WHERE "username"=? AND (? OR "active" IS NULL)`;
-const ACTIVATE_USER = `UPDATE "users" SET "active"=NULL WHERE "username"=?`;
-const UPDATE_PASSWORD_SQL = `UPDATE "users" SET "password_argon2"=? WHERE "id"=?`;
 
 const LIST_USER_SSH_KEYS = `SELECT "id", "algorithm", "key", "comment" FROM "user_keys" WHERE "user_id"=?`;
 const CREATE_USER_SSH_KEY = `INSERT INTO "user_keys" ("user_id", "algorithm", "key", "comment") VALUES (?, ?, ?, ?)`;
 const DELETE_USER_SSH_KEY = `DELETE FROM "user_keys" WHERE "user_id"=? AND "id"=?`;
-const FIND_SSH_KEY = `SELECT "user_id" FROM "user_keys" WHERE "algorithm"=? AND "key"=?`;
 
 const FIND_USER_PROJECTS = `SELECT "projects"."id", "projects"."name", "projects"."private" FROM "users"
 INNER JOIN "project_members" ON "project_members"."user_id"="users"."id"
@@ -77,20 +31,6 @@ INNER JOIN "project_members" AS "m1" ON "m1"."user_id"="users"."id"
 INNER JOIN "project_members" AS "m2" ON "m1"."project_id"="m2"."project_id"
 INNER JOIN "projects" ON "projects"."id"="m1"."project_id"
 WHERE "users"."username"=? AND "m2"."user_id"=?`;
-
-async function hash(password: Buffer, salt: Buffer) {
-    return await argon2.hash(password, {
-        salt: salt,
-        saltLength: 16,
-        raw: true,
-        version: 0x13,
-        type: argon2.argon2id,
-        parallelism: 1,
-        memoryCost: 4096,
-        timeCost: 4,
-        hashLength: 32,
-    });
-}
 
 declare global {
     namespace Express {
@@ -108,36 +48,14 @@ declare global {
     }
 }
 
-export async function getUser(username: string) {
-    var users: User[];
-    users = await all(SELECT_USER_SQL, username, false);
-    if (users.length === 0) {
-        return null;
-    }
-    return users[0];
-}
-
-export async function findSSHKey(algorithm: string, key: Buffer) {
-    const res: {user_id: number}[] = await all(FIND_SSH_KEY, algorithm, key);
-    if (res.length == 0) {
-        return null;
-    } else {
-        return res[0].user_id;
-    }
-}
-
 export function session(req: Request, res: Response, next: NextFunction) {
     if (req.session == null) {
         req.user_session = undefined;
         next();
         return;
     }
-    all(SELECT_USER_SQL, req.session.username, false).then((users: User[]) => {
-        if (users.length != 1) {
-            req.user_session = undefined;
-        } else {
-            req.user_session = users[0];
-        }
+    selectUser(req.session.username, false).then(user => {
+        req.user_session = user;
         next();
     }, err => {
         next(errors.database(err));
@@ -195,20 +113,20 @@ export default async function Users(app: Express, currentVersion: number): Promi
             next(errors.invalid_request());
             return;
         }
-        var users: User[];
+        var users: User | undefined;
         try {
-            users = await all(SELECT_USER_SQL, req.body.username, true);
+            users = await selectUser(req.body.username, true);
         } catch (e) {
             next(errors.database(e));
             return;
         }
 
-        if (users.length != 1) {
+        if (users == null) {
             next(errors.bad_credentials());
             return;
         }
 
-        const user = users[0];
+        const user = users;
         if (user.active != null) {
             next(errors.unactivated_account());
             return;
@@ -255,7 +173,7 @@ export default async function Users(app: Express, currentVersion: number): Promi
         const h = await hash(Buffer.from(req.body.password), salt);
 
         try {
-            await run(CREATE_USER_SQL, req.body.username, req.body.email, h, salt, active)
+            await createUser(req.body.username, req.body.email, h, salt, active);
             await fs.promises.copyFile("profiles/default.jpeg", "profiles/" + req.body.username + ".jpg");
             console.log("Adding user to database with activation key: " + active.toString("base64"));
             next({
@@ -272,22 +190,22 @@ export default async function Users(app: Express, currentVersion: number): Promi
     });
 
     app.get('/users/:username/projects', async (req, res, next) => {
-        var users: User[];
+        var users: User | undefined;
         try {
-            users = await all(SELECT_USER_SQL, req.params.username, false);
+            users = await selectUser(req.params.username, false);
         } catch (e) {
             next(errors.database(e));
             return;
         }
 
-        if (users.length != 1) {
+        if (users == null) {
             next(errors.not_found("User"));
             return;
         }
 
         try {
-            const res1 = await all(FIND_USER_PROJECTS, users[0].username);
-            const res2 = req.user_session == null ? [] : await all(FIND_COMMON_PROJECTS, users[0].username, req.user_session.id);
+            const res1 = await all(FIND_USER_PROJECTS, users.username);
+            const res2 = req.user_session == null ? [] : await all(FIND_COMMON_PROJECTS, users.username, req.user_session.id);
             next({
                 type: "success",
                 statusCode: 200,
@@ -311,20 +229,20 @@ export default async function Users(app: Express, currentVersion: number): Promi
             next(errors.invalid_request());
             return;
         }
-        var users: User[];
+        var users: User | undefined;
         try {
-            users = await all(SELECT_USER_SQL, req.params['username'], true);
+            users = await selectUser(req.params['username'], true);
         } catch (e) {
             next(errors.database(e));
             return;
         }
 
-        if (users.length != 1) {
+        if (users == null) {
             next(errors.not_found("User"));
             return;
         }
 
-        const user = users[0];
+        const user = users;
         if (user.active != null && user.active.toString("base64").split("=").join("") === req.body.toString("ascii").split("=").join("")) {
             try {
                 const result = await run(ACTIVATE_USER, req.params['username']);

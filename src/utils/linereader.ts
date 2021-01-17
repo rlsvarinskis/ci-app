@@ -2,6 +2,7 @@ import stream from 'stream';
 
 const NEWLINE = 0x0a;
 
+//This is a utility class that provides a promise based way of reading a stream line-by-line.
 export default class LineReader {
     private input: stream.Readable;
     private buffer: Buffer[] = [];

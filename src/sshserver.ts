@@ -1,5 +1,5 @@
 import { Server } from 'ssh2';
-import { findSSHKey } from 'controllers/users';
+import { findSSHKey } from 'models/user';
 import fs from 'fs';
 import { performance } from 'perf_hooks';
 import stringArgv from 'string-argv';
@@ -16,16 +16,13 @@ function sleep(time: number) {
     });
 }
 
-function handleGitUploadPack(userId: number) {
-
-}
-
 var sessions = 0;
 
 export async function sshServer(sshHost: string, sshPort: number) {
     if (sshPort == 0) {
         return null;
     }
+    //Load the SSH key to be used by the server.
     var key = await fs.promises.readFile("./key");
     var server = new Server({
         hostKeys: [{
@@ -33,6 +30,7 @@ export async function sshServer(sshHost: string, sshPort: number) {
         }],
         ident: "ci-app-ssh-server",
     }, (client, info) => {
+        //Store some session information, so that receive-pack and upload-pack will know which user requested it
         var userId: number | null = null;
         const sId = sessions++;
         let wasLastPK = false;
@@ -42,6 +40,7 @@ export async function sshServer(sshHost: string, sshPort: number) {
             console.log("Client error!", error);
         });
         client.on('authentication', async context => {
+            //Allow all usernames to access SSH. Usually, "git" should be used, but since there is no other use for the username, any username will do.
             if (context.username !== "git") {
             //    context.reject();
             //    console.warn("[SSH][" + sId + "] Bad username: " + context.username);
@@ -73,6 +72,7 @@ export async function sshServer(sshHost: string, sshPort: number) {
                     }
                     break;
                 default:
+                    //If we already checked PKs and none of them matched, allow access as an anonymous user.
                     if (wasLastPK) {
                         context.accept();
                     }
@@ -82,18 +82,16 @@ export async function sshServer(sshHost: string, sshPort: number) {
             }
         });
         client.on('session', (a, r) => {
+            //Session ID for logging purposes
             const ssId = ss++;
             console.info("[SSH][" + sId + "] Establishing session " + ssId);
-            //if (userId == null) {
-            //    console.warn("[SSH][" + sId + "][" + ssId + "] Attempt to establish session despite failed authentication");
-            //    r();
-            //    return;
-            //}
-            //const uid = userId;
+
             const session = a();
+            //Store a list of user-provided environment variables.
             const setEnv: {[key: string]: string} = {};
             session.on("exec", (a, r, i) => {
                 const cmd = stringArgv(i.command);
+                //If the provided command the user is executing doesn't have a command and an argument, then it is invalid. Reject.
                 if (cmd.length !== 2) {
                     if (r == null) {
                         console.warn("[SSH][" + sId + "][" + ssId + "] Reject function is null!");
@@ -106,16 +104,15 @@ export async function sshServer(sshHost: string, sshPort: number) {
                             console.info("[SSH][" + sId + "][" + ssId + "] Running upload-pack on " + cmd[1]);
                             upload_pack.run(userId, cmd[1], setEnv, a()).catch(e => {
                                 console.error(e);
-                                //TODO:
                             });
                             break;
                         case "git-receive-pack":
                             console.info("[SSH][" + sId + "][" + ssId + "] Running receive-pack on " + cmd[1]);
                             receive_pack.run(userId, cmd[1], setEnv, a()).catch(e => {
                                 console.error(e);
-                                //TODO:
                             });
                             break;
+                        //Unknown command. Reject.
                         default:
                             if (r == null) {
                                 console.warn("[SSH][" + sId + "][" + ssId + "] Reject function is null!");
@@ -130,6 +127,7 @@ export async function sshServer(sshHost: string, sshPort: number) {
             });
             session.on("env", (a, r, i) => {
                 switch (i.key.toUpperCase()) {
+                    //HOME and GIT_DIR must not be changed by the user.
                     case "HOME":
                     case "GIT_DIR":
                         console.warn("[SSH][" + sId + "][" + ssId + "] Ignoring env \"" + i.key + "\": \"" + i.value + "\"");

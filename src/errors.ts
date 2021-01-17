@@ -1,5 +1,4 @@
-import { NextFunction } from "express";
-
+//A list of functions that provide error outputs.
 export const errors = {
     database: function(e: any) {
         console.warn("Database error", e);

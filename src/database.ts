@@ -54,6 +54,7 @@ export function all(sql: string, ...params: any[]): Promise<any[]> {
     });
 }
 
+//Open the database file.
 export function openDb(dbFile: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         db = new sqlite3.Database(dbFile, err => {
@@ -69,19 +70,21 @@ export function openDb(dbFile: string): Promise<void> {
 export async function prepareDb(app: Express, modules: {[key: string]: Module}): Promise<void> {
     await openDb("./database.db");
 
+    //Create the module version table if it doesn't exist.
     await run(CREATE_DATABASE_VERSION_SQL);
     const modulesCV: {[key: string]: number} = {};
+    //Find all existing module versions in the database.
     (<ModuleVersion[]> await all(SELECT_VERSIONS_SQL)).forEach(v => {
         modulesCV[v.module] = v.version;
     });
     for (const key in modules) {
-        //Begin transaction
+        //Tell the module to update the module's database tables from the current version to its latest version.
         if (modulesCV[key] != null) {
             modulesCV[key] = await modules[key](app, modulesCV[key]);
-            await run(UPDATE_VERSION_SQL, key, modulesCV[key]);
         } else {
             modulesCV[key] = await modules[key](app, 0);
-            await run(INSERT_MODULE_SQL, key, modulesCV[key]);
         }
+        //Update the version of the module in the database.
+        await run(INSERT_MODULE_SQL, key, modulesCV[key]);
     }
 }

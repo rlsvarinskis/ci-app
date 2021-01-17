@@ -7,7 +7,7 @@ import { lengthStr } from "utils";
 import fs from 'fs';
 import path from 'path';
 import { parse } from "url";
-import { getUser, User } from "controllers/users";
+import { getUser, User } from "models/user";
 import * as mime from 'mime-types';
 import { sshPort } from "ports";
 import CI from "./ci";
@@ -287,7 +287,7 @@ export async function canDeleteTags(project: number, user: number) {
     return (await all(CAN_DELETE_TAGS_SQL, user, project))[0].count > 0;
 }
 
-export async function canReadProject(project: number, user: number | null) {
+export async function isProjectMember(project: number, user: number | null) {
     return (await all(CAN_READ_PROJECT_SQL, user, project))[0].count > 0;
 }
 
@@ -475,7 +475,7 @@ mode: 0o777
                     return;
                 }
                 try {
-                    if (project.owner != req.user_session.id && !(await canReadProject(project.id, req.user_session.id))) {
+                    if (project.owner != req.user_session.id && !(await isProjectMember(project.id, req.user_session.id))) {
                         next(errors.forbidden());
                         return;
                     }
@@ -1037,7 +1037,7 @@ mode: 0o777
         }
 
         try {
-            if (!canReadProject(req.project.id, us.id)) {
+            if (!isProjectMember(req.project.id, us.id)) {
                 next(errors.invalid_request());
                 return;
             }

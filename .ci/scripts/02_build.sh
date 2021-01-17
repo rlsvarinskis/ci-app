@@ -11,6 +11,6 @@ npm run build
 cd ..
 
 npm ci
-npm run build
+npm run bundle
 
 cp -r node_modules dist

@@ -1,74 +1,19 @@
 import { ServerChannel } from "ssh2";
 import * as cp from "child_process";
-import { Project, getProject, isValidRepositoryName, canReadProject, createPush } from "controllers/projects";
+import { Project, getProject, isValidRepositoryName, isProjectMember, createPush } from "controllers/projects";
 import fs from 'fs';
 import path from 'path';
 import { BranchFolder, ProjectIdFile, PushIdFile, RemoteRepoFile, TagFolder, UserIdFile, OutputDirFile, DatabaseFile, PushFolder } from "hooks/folders";
 import { start } from 'hooks/post-receive';
 
-/*function read(channel: ServerChannel, amount?: number) {
-    if (!channel.readable) {
-        return Promise.resolve<Buffer | null>(null);
-    }
-    if (channel.readableLength >= (amount || 1)) {
-        return Promise.resolve<Buffer | null>(channel.read(amount));
-    }
-    return new Promise<Buffer | null>((resolve, reject) => {
-        const readableListener = function() {
-            if (channel.readableLength >= (amount || 1)) {
-                channel.removeListener("readable", readableListener);
-                channel.removeListener("error", errorListener);
-                resolve(channel.read(amount));
-            }
-        };
-        const errorListener = function(error: Error) {
-            channel.removeListener("readable", readableListener);
-            channel.removeListener("error", errorListener);
-            reject(error);
-        }
-        
-        channel.addListener("readable", readableListener);
-        channel.addListener("error", errorListener);
-    });
-}*/
-
-/*interface ChunkData {
-    type: "data",
-    sha1: string,
-    branch_name: string,
-};
-
-interface ChunkError {
-    type: "error",
-};
-
-interface ChunkEnd {
-    type: "end",
-};
-
-async function parseChunk(channel: ServerChannel) {
-    const length = await read(channel, 4);
-    if (length == null || length.length !== 4) {
-        return null;
-    }
-    const str = length.toString("ascii");
-    var len: Number;
-    try {
-        len = Number.parseInt(str, 16);
-    } catch (e) {
-        return null;
-    }
-
-    if (len === 0) {
-        return {};
-    }
-}*/
-
+//This function turns a hierarchical project name into the ID of the project. The project ID is used to store the project.
 export async function findProject(project: string) {
+    //Both relative and absolute paths refer to the same folder.
     if (project[0] === '/') {
         project = project.substring(1);
     }
     const paths = project.split("/");
+    //All parts of the path must be valid repository names.
     if (paths.some(x => !isValidRepositoryName(x))) {
         return null;
     }
@@ -99,6 +44,7 @@ export function notGitRepo(project: string, channel: ServerChannel) {
     channel.exit(128);
 }
 
+//Prepare a folder with information about the push, who is doing it, etc.
 async function prepareHookDir(userId: number, projectId: number, pushId: number, remoteRepo: string, outputDir: string, databaseFile: string) {
     const hook_dir = path.join("/tmp", "ci-app-push-" + pushId);
     await fs.promises.mkdir(hook_dir);
@@ -121,7 +67,8 @@ export async function run(userId: number | null, project: string, env: {[key: st
         return notGitRepo(project, channel);
     }
 
-    if (userId !== p.owner && !canReadProject(p.id, userId)) {
+    //Check if the user can read the project.
+    if (userId !== p.owner && !isProjectMember(p.id, userId)) {
         return notGitRepo(project, channel);
     }
 

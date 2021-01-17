@@ -1,5 +1,6 @@
 import yargs from 'yargs/yargs';
 
+//Load command line arguments and export them for all files to use.
 const argv = yargs(process.argv.slice(2)).argv;
 let targetHttpPort = 80;
 if (Number.isInteger(argv['http-port'])) {

@@ -1,5 +1,5 @@
 import { findProject, notGitRepo } from "git_receive_pack";
-import { canReadProject, getNonReadBranches } from "controllers/projects";
+import { isProjectMember, getNonReadBranches } from "controllers/projects";
 import { ServerChannel } from "ssh2";
 import cp from 'child_process';
 import path from 'path';
@@ -13,13 +13,16 @@ export async function run(userId: number | null, project: string, env: {[key: st
         return notGitRepo(project, channel);
     }
 
-    if (userId !== p.owner && !canReadProject(p.id, userId)) {
+    //Check if the user can read the project (i.e. the user is a member of the project)
+    if (userId !== p.owner && p.private && !isProjectMember(p.id, userId)) {
         return notGitRepo(project, channel);
     }
 
+    //Find a list of branches that the user cannot read and tell git to pretend those branches do not exist.
     const hiddenRefs = (await getNonReadBranches(p.id, userId)).flatMap(x => ["-c", "uploadpack.hideRefs=refs/heads/" + x]);
 
     return await new Promise<void>(resolve => {
+        //allowFilter allows users to partially clone the git directory
         const process = cp.spawn("git", [...hiddenRefs, "-c", "uploadpack.allowFilter", "upload-pack", path.resolve("repo", p.id + ".git")], {
             env: env
         });
