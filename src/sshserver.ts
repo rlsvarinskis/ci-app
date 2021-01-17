@@ -38,6 +38,9 @@ export async function sshServer(sshHost: string, sshPort: number) {
         let wasLastPK = false;
         var ss = 0;
         console.info("[SSH] New client " + sId);
+        client.on("error", (error) => {
+            console.log("Client error!", error);
+        });
         client.on('authentication', async context => {
             if (context.username !== "git") {
             //    context.reject();

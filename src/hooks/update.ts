@@ -131,10 +131,9 @@ async function start() {
                 //Spawn the container
                 const containerName = "ci-app-update-" + projectId + "-" + md5(name);
                 //No problem with using sync, since this is a separate process anyways.
-                child_process.spawnSync("lxc", ["init", "ubuntu:20.04", containerName]);
+                child_process.spawnSync("lxc", ["launch", "ubuntu:20.04", containerName]);
                 try {
                     //Start the container and put the needed files in it.
-                    child_process.spawnSync("lxc", ["start", containerName]);
                     child_process.spawnSync("lxc", ["file", "push", "-r", "-p", PROJECT_FOLDER, containerName + "/root"]);
                     child_process.spawnSync("lxc", ["file", "push", "-r", "-p", OUTPUT_FOLDER, containerName + "/root"]);
                     await fs.rm(OUTPUT_FOLDER, {
@@ -155,7 +154,6 @@ async function start() {
                                 end: false
                             });
                             ex.stdin.write([oldHex, newHex, refName].join(" ") + "\n");
-                            ex.stdin.end();
                             const exitCode = await new Promise<number>((resolve, reject) => {
                                 ex.addListener("close", function(exit) {
                                     resolve(exit);
