@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import path from 'path';
 import ssh2 from 'ssh2';
 import { httpHost, httpPort, httpsPort, sshHost, sshPort } from 'ports';
+import { errors } from 'errors';
 
 const app = express();
 var ssh: ssh2.Server | null;
@@ -21,11 +22,7 @@ var server2: https.Server | null = null;
 const secret = crypto.randomBytes(32);
 
 //Still TODO:
-// * Frontend
-// * Command line arguments
-// * Host frontend
 // * Delete a project
-// * View source code through REST api
 // * Search users by name
 // * Search projects by name
 // * Create and view tags
@@ -78,10 +75,7 @@ async function start() {
             }
         } catch (e) {
             res.status(500);
-            res.end(JSON.stringify({
-                type: "error",
-                message: "Website error",
-            }));
+            res.end(errors.database(e));
         }
     });
     api.use(function (req, res, next) {

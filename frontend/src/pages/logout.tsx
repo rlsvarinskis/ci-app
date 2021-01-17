@@ -1,45 +1,40 @@
 import Page from 'components/page';
 import React from 'react';
+import { FailResponses, post } from 'utils/xhr';
+import ErrorPage from 'pages/error';
 
 interface LogoutProps {
     onLogout: () => void;
 }
 
-export default class Logout extends React.Component<LogoutProps, {
-    loggingOut: boolean,
-    errored: any,
-}> {
-    constructor(props: LogoutProps) {
-        super(props);
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/logout");
-        xhr.responseType = "json";
-        xhr.onreadystatechange = evt => {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    this.props.onLogout();
-                } else {
-                    this.setState({
-                        loggingOut: false,
-                        errored: xhr.response,
-                    });
-                }
+interface LogoutState {
+    state: true | FailResponses;
+}
+
+export default class Logout extends React.Component<LogoutProps, LogoutState> {
+    state: LogoutState = {
+        state: true
+    };
+
+    componentDidMount() {
+        post("/api/logout", undefined).then(result => {
+            if (result.type === "success") {
+                this.props.onLogout();
+            } else {
+                this.setState({
+                    state: result
+                });
             }
-        };
-        this.state = {
-            loggingOut: true,
-            errored: null,
-        };
-        xhr.send();
+        });
     }
 
     render() {
-        if (this.state.errored) {
-            return <Page><h1>Error!</h1><p>{this.state.errored?.message}</p></Page>
-        } else if (this.state.loggingOut) {
-            return <Page><h1>Logging out...</h1></Page>
+        if (this.state.state === true) {
+            return <Page>
+                <h2>Logging out...</h2>
+            </Page>;
         } else {
-            return <Page><h1>Logging out</h1></Page>
+            return <ErrorPage error={this.state.state} />;
         }
     }
 }

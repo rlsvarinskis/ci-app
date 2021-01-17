@@ -1,94 +1,91 @@
 import Page from "components/page";
 import React from "react";
-import { Redirect } from "react-router-dom";
 import { RegisterItem } from "components/navbar/item";
 import Navbar from "components/navbar";
+import { FailResponses, post } from "utils/xhr";
+import styles from './account/account.less';
+import RowInput from "components/rowinput";
+import FormSubmit from "components/formsubmit";
 
-export default class Register extends React.Component {
-    state: {registering: boolean, registered: boolean, error: any} = {
-        registering: false,
-        registered: false,
-        error: null,
+interface RegisterState {
+    state: "registering" | boolean | FailResponses;
+    email: string;
+    username: string;
+    password: string;
+    password2: string;
+};
+
+export default class Register extends React.Component<{}, RegisterState> {
+    state: RegisterState = {
+        state: false,
+        email: "",
+        username: "",
+        password: "",
+        password2: ""
     };
 
-    submit(evt: React.FormEvent<HTMLFormElement>) {
-        evt.preventDefault();
-        const el = evt.currentTarget.elements;
-
-        if ((el.namedItem("password") as any).value !== (el.namedItem("password2") as any).value) {
+    submit() {
+        if (this.state.password !== this.state.password2) {
             this.setState({
-                registering: false,
-                registered: false,
-                error: {
-                    status: 0,
-                    message: "Passwords do not match!",
+                state: {
+                    type: "failed",
+                    code: 0,
+                    result: "invalid_request",
+                    message: "Passwords do not match!"
                 },
             });
-            return false;
+            return;
         }
         
         const res = {
-            email: (el.namedItem("email") as any).value,
-            username: (el.namedItem("username") as any).value,
-            password: (el.namedItem("password") as any).value,
+            email: this.state.email,
+            username: this.state.username,
+            password: this.state.password,
         };
 
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/users");
-        xhr.responseType = "json";
-        xhr.onreadystatechange = (ev) => {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    this.setState({
-                        registering: false,
-                        registered: true,
-                        error: null,
-                    });
-                    //Registered!
-                } else {
-                    this.setState({
-                        registering: false,
-                        registered: false,
-                        error: xhr.response,
-                    })
-                    //Error!
-                }
+        post("/api/users", res).then(result => {
+            if (result.type === "success") {
+                this.setState({
+                    state: true
+                });
+            } else {
+                this.setState({
+                    state: result
+                });
             }
-        }
-        xhr.setRequestHeader("Content-type", "application/json");
-        xhr.send(JSON.stringify(res));
-        this.setState({
-            registering: true,
-            registered: false,
-            error: null,
         });
-
-        return false;
+        this.setState({
+            state: "registering"
+        });
     }
 
     render() {
-        if (this.state.registered) {
+        if (this.state.state === true) {
             return <>
                 <Navbar user={{username: "", email: ""}}><RegisterItem path={"/register"}>Register</RegisterItem></Navbar>
-                <Page>
-                    <h1>You have registered.</h1>
-                    <p>An email has been sent to your account with activation instructions.</p>
-                </Page>
+                <div className={styles.page}>
+                    <div className={styles.formpage}>
+                        <h2>You have registered.</h2>
+                        <p>An email has been sent to your account with activation instructions.</p>
+                    </div>
+                </div>
             </>;
         } else {
             return <>
                 <Navbar user={{username: "", email: ""}}><RegisterItem path={"/register"}>Register</RegisterItem></Navbar>
-                <Page>
-                    <h1>Register</h1>
-                    <form onSubmit={(evt) => this.submit(evt)}>
-                        <p>Email: <input name="email" type="email"></input></p>
-                        <p>Username: <input name="username" type="username"></input></p>
-                        <p>Password: <input name="password" type="password"></input></p>
-                        <p>Repeat password: <input name="password2" type="password"></input></p>
-                        <input type="submit" value="Login" disabled={this.state.registering}></input>
-                        {this.state.error != null ? <>{this.state.error.message}</> : <></>}
-                    </form>
-                </Page>
+                <div className={styles.page}>
+                    <div className={styles.formpage}>
+                        <form onSubmit={evt => {evt.preventDefault(); this.submit(); return false;}}>
+                            <h2 className={styles.title}>Register</h2>
+                            <RowInput type="email" value={this.state.email} onChange={evt => this.setState({email: evt.currentTarget.value})}>Email</RowInput>
+                            <RowInput type="text" value={this.state.username} onChange={evt => this.setState({username: evt.currentTarget.value})}>Username</RowInput>
+                            <RowInput type="password" value={this.state.password} onChange={evt => this.setState({password: evt.currentTarget.value})}>Password</RowInput>
+                            <RowInput type="password" value={this.state.password2} onChange={evt => this.setState({password2: evt.currentTarget.value})}>Repeat password</RowInput>
+                            {this.state.state !== false && this.state.state !== "registering" ? <>{JSON.stringify(this.state.state)}</> : <></>}
+                            <FormSubmit disabled={this.state.state === "registering"} onClick={() => this.submit()}>Register</FormSubmit>
+                        </form>
+                    </div>
+                </div>
             </>;
         }
     }

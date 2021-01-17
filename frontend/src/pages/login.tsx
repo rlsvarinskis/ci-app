@@ -1,29 +1,41 @@
 import { User } from "App";
 import Navbar from "components/navbar";
-import Page from "components/page";
 import React from "react";
 import { LoginItem } from 'components/navbar/item';
 import { FailResponses, post, request } from "utils/xhr";
+import styles from './account/account.less';
+import RowInput from "components/rowinput";
+import FormSubmit from "components/formsubmit";
 
 interface LoginProps {
     onLogin: (user: User) => void;
 };
 
-export default class Login extends React.Component<LoginProps> {
-    state: {loggingIn: boolean, loggedIn: boolean, error: FailResponses | null} = {
+interface LoginState {
+    username: string;
+    password: string;
+    remember: boolean;
+
+    loggingIn: boolean;
+    loggedIn: boolean;
+    error: FailResponses | null;
+};
+
+export default class Login extends React.Component<LoginProps, LoginState> {
+    state: LoginState = {
+        username: "",
+        password: "",
+        remember: false,
         loggingIn: false,
         loggedIn: false,
         error: null,
     };
 
-    submit(evt: React.FormEvent<HTMLFormElement>) {
-        evt.preventDefault();
-        const el = evt.currentTarget.elements;
-        
+    submit() {
         const res = {
-            username: (el.namedItem("username") as any).value,
-            password: (el.namedItem("password") as any).value,
-            remember: (el.namedItem("remember") as any).checked,
+            username: this.state.username,
+            password: this.state.password,
+            remember: this.state.remember,
         };
 
         post("/api/login", res).then(result => {
@@ -49,8 +61,6 @@ export default class Login extends React.Component<LoginProps> {
             loggingIn: true,
             error: null,
         });
-
-        return false;
     }
 
     render() {
@@ -60,23 +70,25 @@ export default class Login extends React.Component<LoginProps> {
                 {this.state.error.message}
             </>;
         } else if (this.state.error?.type === "bad") {
-            errors = <>Server responded with malformed message</>
+            errors = <>Server responded with malformed message</>;
         } else if (this.state.error?.type === "error") {
-            errors = <>Client side error occured: {this.state.error.error.toString()}</>
+            errors = <>Client side error occured: {this.state.error.error.toString()}</>;
         }
 
         return <>
             <Navbar user={{username: "", email: ""}}><LoginItem path={"/login"}>Login</LoginItem></Navbar>
-            <Page>
-                <h1>Login</h1>
-                <form onSubmit={(evt) => this.submit(evt)}>
-                    <p>Username: <input name="username" type="username"></input></p>
-                    <p>Password: <input name="password" type="password"></input></p>
-                    <p>Remember me: <input name="remember" type="checkbox"></input></p>
-                    <input type="submit" value="Login" disabled={this.state.loggingIn}></input>
-                    {errors}
-                </form>
-            </Page>
+            <div className={styles.page}>
+                <div className={styles.formpage}>
+                    <form onSubmit={evt => {evt.preventDefault(); this.submit(); return false;}}>
+                        <h2 className={styles.title}>Login</h2>
+                        <RowInput type="text" value={this.state.username} onChange={evt => this.setState({username: evt.currentTarget.value})}>Username</RowInput>
+                        <RowInput type="password" value={this.state.password} onChange={evt => this.setState({password: evt.currentTarget.value})}>Password</RowInput>
+                        {errors}
+                        <label className={styles.formrow}><input type="checkbox" checked={this.state.remember} onChange={evt => this.setState({remember: evt.currentTarget.checked})} /> Remember me</label>
+                        <FormSubmit disabled={this.state.loggingIn} onClick={() => this.submit()}>Login</FormSubmit>
+                    </form>
+                </div>
+            </div>
         </>;
     }
 }

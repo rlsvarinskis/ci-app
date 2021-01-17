@@ -1,0 +1,25 @@
+@import '~variables.less';
+
+.row {
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.label {
+    color: @text-gray;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.input {
+    width: 100%;
+    border: solid 1px @background-dark-border;
+    padding: 0.5em 0.5em;
+    font-family: "Lato", sans-serif;
+    color: black;
+    outline: none;
+
+    &:focus {
+        border: solid 1px @main-color;
+    }
+}

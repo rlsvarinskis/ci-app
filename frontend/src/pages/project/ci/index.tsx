@@ -41,8 +41,7 @@ class ProjectPushList extends React.Component<ProjectPageProps, ProjectPushState
         loading: true,
     };
 
-    constructor(props: ProjectPageProps) {
-        super(props);
+    componentDidMount() {
         this.loadMore();
     }
 
