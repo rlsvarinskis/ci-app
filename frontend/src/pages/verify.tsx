@@ -4,7 +4,7 @@ import RowInput from 'components/rowinput';
 import React from 'react';
 import { Redirect } from 'react-router-dom';
 import { FailResponses, request } from 'utils/xhr';
-import styles from './account/account.less';
+import styles from './form/form.less';
 
 interface VerifyProps {
     username: string;

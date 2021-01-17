@@ -149,8 +149,10 @@ class RetrieveFileContents extends React.Component<FileContentsProps, FileConten
             }
         } else if (this.state.loading === true) {
             pageResults = <div>Loading...</div>;
+        } else if (this.state.loading.type === "failed") {
+            pageResults = <div className={styles.empty}>The master branch does not exist yet</div>
         } else {
-            pageResults = <div>Error! {this.state.loading.toString()}</div>;
+            pageResults = <div>Unexpected error! {JSON.stringify(this.state.loading)}</div>;
         }
         const name = this.props.filename.length === 0 ? "Source code" : this.props.filename.join("/");
         return (

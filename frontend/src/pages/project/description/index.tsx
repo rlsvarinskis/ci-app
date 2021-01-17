@@ -266,13 +266,6 @@ class ProjectFiles extends React.Component<ProjectFilesProps, ProjectFilesState>
         </div>
     }
 
-    renderError() {
-        return <div>
-            <div className={infobar.sectiontitle}>master</div>
-            <span>Failed to load: {JSON.stringify(this.state.data)}</span>
-        </div>;
-    }
-
     render() {
         const d = this.state.data;
         if (d == null) {
@@ -290,6 +283,9 @@ class ProjectFiles extends React.Component<ProjectFilesProps, ProjectFilesState>
                     /> : <></>
                 }
                 {
+                    d.data.length === 0 ? <EmptyItem>No files</EmptyItem> : <></>
+                }
+                {
                     ...d.data.map(file => {
                         const icon = file.folder ? "https://www.ispsd.com/wp-content/uploads/2013/02/wpid-folder-icon-512x512.png" : file.name.endsWith(".zip") ? "https://www.iconhot.com/icon/png/sleek-xp-software/256/zip.png" : "https://i.pinimg.com/originals/7f/d2/e4/7fd2e46b2da9819e667fb75caf475cf7.png";
                         return <FileItem
@@ -305,7 +301,24 @@ class ProjectFiles extends React.Component<ProjectFilesProps, ProjectFilesState>
                 }
             </div>;
         } else {
-            return this.renderError();
+            if (d.type === "failed") {
+                if (d.result === "not_found") {
+                    return <div>
+                        <div className={infobar.sectiontitle}>master</div>
+                        <EmptyItem>No files</EmptyItem>
+                    </div>;
+                } else {
+                    return <div>
+                        <div className={infobar.sectiontitle}>master</div>
+                        <EmptyItem>Server error</EmptyItem>
+                    </div>;
+                }
+            } else {
+                return <div>
+                    <div className={infobar.sectiontitle}>master</div>
+                    <EmptyItem>Error</EmptyItem>
+                </div>;
+            }
         }
     }
 }

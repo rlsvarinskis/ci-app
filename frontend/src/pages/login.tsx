@@ -3,7 +3,7 @@ import Navbar from "components/navbar";
 import React from "react";
 import { LoginItem } from 'components/navbar/item';
 import { FailResponses, post, request } from "utils/xhr";
-import styles from './account/account.less';
+import styles from './form/form.less';
 import RowInput from "components/rowinput";
 import FormSubmit from "components/formsubmit";
 
@@ -83,8 +83,8 @@ export default class Login extends React.Component<LoginProps, LoginState> {
                         <h2 className={styles.title}>Login</h2>
                         <RowInput type="text" value={this.state.username} onChange={evt => this.setState({username: evt.currentTarget.value})}>Username</RowInput>
                         <RowInput type="password" value={this.state.password} onChange={evt => this.setState({password: evt.currentTarget.value})}>Password</RowInput>
-                        {errors}
                         <label className={styles.formrow}><input type="checkbox" checked={this.state.remember} onChange={evt => this.setState({remember: evt.currentTarget.checked})} /> Remember me</label>
+                        {errors}
                         <FormSubmit disabled={this.state.loggingIn} onClick={() => this.submit()}>Login</FormSubmit>
                     </form>
                 </div>

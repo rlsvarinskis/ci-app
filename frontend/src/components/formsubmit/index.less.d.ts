@@ -1,5 +1,6 @@
 declare namespace IndexLessNamespace {
   export interface IIndexLess {
+    cancel: string;
     submit: string;
   }
 }

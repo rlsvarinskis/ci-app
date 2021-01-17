@@ -3,7 +3,7 @@ import React from "react";
 import { RegisterItem } from "components/navbar/item";
 import Navbar from "components/navbar";
 import { FailResponses, post } from "utils/xhr";
-import styles from './account/account.less';
+import styles from './form/form.less';
 import RowInput from "components/rowinput";
 import FormSubmit from "components/formsubmit";
 

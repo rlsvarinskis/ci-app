@@ -1,6 +1,7 @@
 declare namespace DirectoryLessNamespace {
   export interface IDirectoryLess {
     back: string;
+    empty: string;
     file: string;
     filecontainer: string;
     filedisplay: string;

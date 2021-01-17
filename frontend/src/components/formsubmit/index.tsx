@@ -7,3 +7,10 @@ export default class FormSubmit extends React.Component<React.ButtonHTMLAttribut
         return <button {...props} className={(className || "") + " " + styles.submit}>{children}</button>;
     }
 }
+
+export class FormCancel extends React.Component<React.ButtonHTMLAttributes<HTMLButtonElement>> {
+    render() {
+        const {children, className, ...props} = this.props;
+        return <button {...props} className={(className || "") + " " + styles.cancel}>{children}</button>;
+    }
+}

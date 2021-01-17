@@ -1,20 +1,39 @@
-:local {
-    .submit {
-        background-color: rgb(242, 204, 13);
-        font-family: "Lato", sans-serif;
-        height: 2rem;
-        display: block;
-        width: 100%;
-        cursor: pointer;
-        font-size: 1rem;
-        border: solid 1px rgba(0, 0, 0, 0.1);
+@import '~variables.less';
 
-        &:hover {
-            background-color: rgb(217, 183, 12);
-        }
+.submit {
+    background-color: rgb(242, 204, 13);
+    font-family: "Lato", sans-serif;
+    height: 2rem;
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    font-size: 1rem;
+    border: solid 1px rgba(0, 0, 0, 0.1);
 
-        &:active {
-            background-color: #c3a40b;
-        }
+    &:hover {
+        background-color: rgb(217, 183, 12);
+    }
+
+    &:active {
+        background-color: #c3a40b;
+    }
+}
+
+.cancel {
+    background-color: @background-darker;
+    font-family: "Lato", sans-serif;
+    height: 2rem;
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    font-size: 1rem;
+    border: solid 1px rgba(0, 0, 0, 0.1);
+
+    &:hover {
+        background-color: @background-dark;
+    }
+
+    &:active {
+        background-color: @text-background;
     }
 }

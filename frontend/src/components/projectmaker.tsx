@@ -1,8 +1,12 @@
-import { User } from 'App';
 import { getBaseURL } from 'pages/project/common';
 import React from 'react';
 import { Redirect } from 'react-router-dom';
 import Modal from './modal';
+import styles from '../pages/form/form.less';
+import RowInput, { RowTextArea } from './rowinput';
+import FormSubmit, { FormCancel } from './formsubmit';
+import { FailResponses, post } from 'utils/xhr';
+import selects from 'components/select/index.less';
 
 interface ProjectMakerProps {
     parent: string[];
@@ -10,9 +14,12 @@ interface ProjectMakerProps {
 };
 
 interface ProjectMakerState {
-    loading: boolean;
-    redirect: string | null;
-    error: any;
+    name: string;
+    description: string;
+    private: boolean;
+    default_branch_permissions: string;
+
+    state: boolean | string | FailResponses;
 };
 
 export const BranchPermissions: ["NONE", "READ", "WRITE"] = ["NONE", "READ", "WRITE"];
@@ -24,72 +31,55 @@ export const BranchPermissionsText = {
 
 export default class ProjectMaker extends React.Component<ProjectMakerProps, ProjectMakerState> {
     state: ProjectMakerState = {
-        loading: false,
-        redirect: null,
-        error: null,
+        name: "",
+        description: "",
+        private: false,
+        default_branch_permissions: "READ",
+
+        state: false
     };
 
-    submitForm(evt: React.FormEvent<HTMLFormElement>) {
-        evt.preventDefault();
-
-        const inp = evt.currentTarget.elements;
-
+    submitForm() {
         const data = {
-            name: (inp.namedItem("name") as HTMLInputElement).value,
-            description: (inp.namedItem("description") as HTMLTextAreaElement).value,
-            private: (inp.namedItem("private") as HTMLInputElement).checked,
-            default_branch_permissions: (inp.namedItem("default_branch_permissions") as HTMLSelectElement).value,
+            name: this.state.name,
+            description: this.state.description,
+            private: this.state.private,
+            default_branch_permissions: this.state.default_branch_permissions,
         };
 
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/projects/" + this.props.parent.map(x => x + "/sub/").join(""));
-        xhr.responseType = "json";
-        xhr.setRequestHeader("Content-type", "application/json");
-        xhr.onreadystatechange = evt => {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                if (xhr.status === 200) {
-                    this.setState(state => ({
-                        ...state,
-                        loading: false,
-                        redirect: getBaseURL({parent: this.props.parent, project: data.name}),
-                        error: null,
-                    }));
-                } else {
-                    this.setState(state => ({
-                        ...state,
-                        loading: false,
-                        redirect: null,
-                        error: xhr.response,
-                    }));
-                }
+        post("/api/projects/" + this.props.parent.map(x => x + "/sub/").join(""), data).then(result => {
+            if (result.type === "success") {
+                this.setState({
+                    state: getBaseURL({parent: this.props.parent, project: data.name})
+                });
+            } else {
+                this.setState({
+                    state: result
+                });
             }
-        }
-        this.setState(state => ({
-            ...state,
-            loading: true,
-            error: null,
-        }));
-        xhr.send(JSON.stringify(data));
-
-        return false;
+        });
+        this.setState({
+            state: true
+        });
     }
 
     render() {
-        if (this.state.redirect != null) {
-            return <Redirect to={this.state.redirect}></Redirect>
+        if (typeof this.state.state === "string") {
+            return <Redirect to={this.state.state}></Redirect>
         }
         return <Modal onClose={this.props.onClose}>
-            <h1>Making a project</h1>
-            <form onSubmit={evt => this.submitForm(evt)}>
-                {this.props.parent.length > 0 ? <p>Parent project: <input name="parent" disabled={true} value={this.props.parent.join("/")}></input></p> : <></>}
-                <p>Project name: <input name="name" disabled={this.state.loading}></input></p>
-                <p>Description:</p>
-                <p><textarea name="description" disabled={this.state.loading}></textarea></p>
-                <p>Private project: <input type="checkbox" name="private" disabled={this.state.loading}></input></p>
-                <p>By default, branches are: <select name="default_branch_permissions" disabled={this.state.loading}>{BranchPermissions.map(x => <option key={x} value={x}>{BranchPermissionsText[x]}</option>)}</select></p>
-                <p><input type="submit" value="Create project" disabled={this.state.loading}></input></p>
-            </form>
-            <button onClick={() => this.props.onClose()}>Cancel</button>
+            <div className={styles.formpage}>
+                <h2 className={styles.title}>Making a project</h2>
+                <form onSubmit={evt => {evt.preventDefault(); this.submitForm(); return false;}}>
+                    {this.props.parent.length > 0 ? <RowInput type="text" disabled={true} value={this.props.parent.join("/")}></RowInput> : <></>}
+                    <RowInput type="text" value={this.state.name} onChange={evt => this.setState({name: evt.currentTarget.value})} disabled={this.state.state === true}>Project name</RowInput>
+                    <RowTextArea style={{width: "40rem", height: "10rem"}} type="text" value={this.state.description} onChange={evt => this.setState({description: evt.currentTarget.value})} disabled={this.state.state === true}>Description</RowTextArea>
+                    <label className={styles.formrow}><input type="checkbox" checked={this.state.private} onChange={evt => this.setState({private: evt.currentTarget.checked})} disabled={this.state.state === true} /> Private project</label>
+                    <label className={styles.formrow}>By default, branches are: <select className={selects.select} value={this.state.default_branch_permissions} onChange={evt => this.setState({default_branch_permissions: evt.currentTarget.value})} disabled={this.state.state === true}>{BranchPermissions.map(x => <option key={x} value={x}>{BranchPermissionsText[x]}</option>)}</select></label>
+                    <FormSubmit className={styles.formrow} disabled={this.state.state === true} onClick={() => this.submitForm()}>Create project</FormSubmit>
+                    <FormCancel onClick={() => this.props.onClose()}>Cancel</FormCancel>
+                </form>
+            </div>
         </Modal>
     }
 }

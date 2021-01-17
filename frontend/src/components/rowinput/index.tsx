@@ -14,3 +14,13 @@ export default class RowInput extends React.Component<React.HTMLProps<HTMLInputE
         </label>;
     }
 }
+
+export class RowTextArea extends React.Component<React.HTMLProps<HTMLTextAreaElement>> {
+    render() {
+        const {children, ...props} = this.props;
+        return <label className={styles.row}>
+            <div className={styles.label}>{children}</div>
+            <textarea {...props} className={styles.input} />
+        </label>;
+    }
+}
