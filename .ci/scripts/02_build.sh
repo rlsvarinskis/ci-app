@@ -4,10 +4,10 @@ mkdir dist
 
 cd frontend
 npm ci
-npm run build
+npx webpack --env production
 cd ..
 
 npm ci
-npm run build
+npx webpack --env production
 
 cp -r node_modules dist

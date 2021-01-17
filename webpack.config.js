@@ -4,7 +4,6 @@ const webpackNodeExternals = require('webpack-node-externals');
 const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
-  mode: 'development',
   devtool: 'inline-source-map',
   entry: {
     index: './src/main.ts',
@@ -23,7 +22,7 @@ module.exports = {
         test: /\.ts$/,
         use: 'ts-loader',
         exclude: [
-          /node_modules/,
+          ...(process.env["NODE_ENV"] === "production" ? [] : [/node_modules/]),
           /frontend/,
           /dist/,
         ],
@@ -38,6 +37,6 @@ module.exports = {
     filename: '[name].js',
     path: path.resolve(__dirname, 'dist'),
   },
-  externals: [webpackNodeExternals()],
+  externals: process.env["NODE_ENV"] === "production" ? [] : [webpackNodeExternals()],
   target: 'node',
 };
