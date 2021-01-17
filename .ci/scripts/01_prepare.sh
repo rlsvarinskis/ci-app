@@ -1,5 +1,5 @@
 #!/bin/sh
 
-apt-get update && apt-get -y install nodejs npm zip
-npm i -g n
-n latest
+#curl -sL https://deb.nodesource.com/setup_15.x | sudo -E bash -
+apt-get update
+apt-get -y install nodejs npm zip
