@@ -3,6 +3,7 @@ import { FailResponses, request } from 'utils/xhr';
 
 interface SSHKeysProps {
     target: string;
+    onClose: () => void;
 };
 
 interface SSHKey {
@@ -84,15 +85,14 @@ export class SSHKeys extends React.Component<SSHKeysProps, SSHKeysState> {
         evt.preventDefault();
         const data = (evt.currentTarget.elements.namedItem("sshkey") as HTMLInputElement).value.trim().split(/\s+/, 3);
         if (data.length < 2) {
-            this.setState(state => ({
-                ...state,
+            this.setState({
                 error: {
                     type: "failed",
                     code: 0,
                     result: "invalid_request",
                     message: "Invalid SSH key format",
                 },
-            }));
+            });
             return;
         } else if (data.length === 2) {
             data.push("");
@@ -134,7 +134,7 @@ export class SSHKeys extends React.Component<SSHKeysProps, SSHKeysState> {
     
     render() {
         return <>
-            <button disabled={this.state.loading > 0} onClick={() => this.setState(state => ({...state, editingSSH: false, error: null}))}>Done</button>
+            <button disabled={this.state.loading > 0} onClick={() => this.props.onClose()}>Done</button>
             {...this.state.keys.map(x => (
                 <React.Fragment key={x.algorithm + " " + x.key}>
                     <p>

@@ -110,9 +110,9 @@ export default class UserPage extends React.Component<UserProps, UserState> {
 
         var sshKeys: JSX.Element;
         if (!this.state.editingSSH) {
-            sshKeys = <button onClick={() => this.setState(state => ({...state, editingSSH: true}))}>Edit SSH keys</button>;
+            sshKeys = <button onClick={() => this.setState({editingSSH: true})}>Edit SSH keys</button>;
         } else {
-            sshKeys = <SSHKeys target={this.props.target}></SSHKeys>
+            sshKeys = <SSHKeys onClose={() => this.setState({editingSSH: false})} target={this.props.target}></SSHKeys>
         }
 
         return <>
