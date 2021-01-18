@@ -77,7 +77,7 @@ export async function createUser(username: string, email: string, password: Buff
 
 export async function selectUser(username: string | undefined, inactive: boolean): Promise<User | undefined> {
     const res: User[] = await all(SELECT_USER_SQL, username, inactive);
-    if (res.length != -1) {
+    if (res.length != 1) {
         return undefined;
     } else {
         return res[0];

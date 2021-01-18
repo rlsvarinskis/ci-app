@@ -81,10 +81,11 @@ export async function prepareDb(app: Express, modules: {[key: string]: Module}):
         //Tell the module to update the module's database tables from the current version to its latest version.
         if (modulesCV[key] != null) {
             modulesCV[key] = await modules[key](app, modulesCV[key]);
+            await run(UPDATE_VERSION_SQL, modulesCV[key], key);
         } else {
             modulesCV[key] = await modules[key](app, 0);
+            //Update the version of the module in the database.
+            await run(INSERT_MODULE_SQL, key, modulesCV[key]);
         }
-        //Update the version of the module in the database.
-        await run(INSERT_MODULE_SQL, key, modulesCV[key]);
     }
 }
